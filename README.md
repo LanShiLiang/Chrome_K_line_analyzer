@@ -1,10 +1,11 @@
 # K Line Analyzer
 
-Chrome Manifest V3 纯前端 K 线量价分析插件。插件在用户当前访问的行情页面内捕获 Fetch/XHR 响应，将候选数据标准化为 OHLCV，并通过可解释的维科夫量价规则输出阶段、信号、置信度、关键价位和风险提示。
+Chrome Manifest V3 纯前端 K 线量价分析插件。插件在用户当前访问的行情页面内监听 WebSocket 行情帧，将候选数据标准化为 OHLCV，并通过可解释的维科夫量价规则输出阶段、信号、置信度、关键价位和风险提示。
 
 ## 功能
 
-- 页面主世界 Fetch/XHR Hook，不修改宿主请求和响应。
+- 页面主世界 WebSocket 只读监听，不修改宿主连接、收发帧和心跳。
+- 内置 TradingView `timescale_update` 和 Binance Kline/combined stream 适配器。
 - Content Script 框选遮罩，支持 Esc 取消。
 - Tab 级候选数据与分析上下文隔离。
 - 数组、对象两类常见 OHLCV 格式标准化。
@@ -26,7 +27,7 @@ npm install
 npm run dev
 ```
 
-打开 `chrome://extensions`，启用开发者模式，选择“加载已解压的扩展程序”，加载项目的 `dist` 目录。打开目标行情页并刷新，使 Inject Script 能在页面请求发生前完成 Hook。
+打开 `chrome://extensions`，启用开发者模式，选择“加载已解压的扩展程序”，加载项目的 `dist` 目录。打开目标行情页并刷新，使 Inject Script 在网站创建 WebSocket 连接前完成 Hook。
 
 ## 验证
 
@@ -42,8 +43,8 @@ npm run package
 ```text
 src/background    Service Worker 与 Tab Session
 src/content       页面识别、框选和 Inject 桥接
-src/inject        Fetch/XHR Hook
-src/core/adapter  OHLCV 标准化与质量校验
+src/inject        WebSocket Hook 与增量 K 线聚合
+src/core/adapter  TradingView/Binance 协议适配、OHLCV 标准化与质量校验
 src/core/analysis 维科夫量价策略引擎
 src/drawer        分析面板与图表
 src/popup         插件快捷入口

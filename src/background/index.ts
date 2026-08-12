@@ -21,7 +21,7 @@ chrome.runtime.onMessage.addListener((message:ExtensionMessage,sender,sendRespon
     const requested=message.payload as {candidateId?:string;config?:UserConfig};
     const candidate=current.candidates.find(c=>c.id===requested.candidateId)??current.candidates[0];
     if(!candidate){sendResponse({ok:false,error:{code:'E_MARKET_DATA_NOT_FOUND',message:'未捕获到行情数据，请刷新页面或切换周期',recoverable:true}});return;}
-    const data=createMarketData(candidate.raw,candidate.url,locationHost(candidate.url));
+    const data=createMarketData(candidate.raw,candidate.url,candidate.siteId??locationHost(candidate.url),candidate.symbol,candidate.period);
     const result=analyzeMarket(data,requested.config??DEFAULT_CONFIG);
     sendResponse({ok:true,data:{marketData:data,result,selection:current.selection}});
     return true;

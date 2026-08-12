@@ -9,4 +9,4 @@ export type TradeSignal = { action:'BUY'|'SELL'|'HOLD'|'RISK'; confidence:number
 export type EvidenceItem = { code:string; label:string; detail:string; score:number };
 export type WyckoffAnalysisResult = { id:string; stage:WyckoffStage; signal:TradeSignal; volumeSummary:{average:number;latest:number;ratio:number;label:'SPIKE'|'LOW'|'NORMAL'}; keyLevels:{support:number;resistance:number}; evidence:EvidenceItem[]; warnings:string[]; createdAt:number };
 export type AnalysisHistory = { id:string; siteId:string; symbol?:string; period?:string; selection?:SelectionRange; result:WyckoffAnalysisResult; createdAt:number };
-export type RawMarketPayload = { id:string; siteId?:string; url:string; method:'GET'|'POST'; status:number; contentType?:string; requestAt:number; responseAt:number; source:'fetch'|'xhr'|'dom'; raw:unknown; sampleText?:string; confidence:number };
+export type RawMarketPayload = { id:string; siteId?:string; symbol?:string; period?:string; url:string; method:'WS'; status:number; contentType?:string; requestAt:number; responseAt:number; source:'websocket'; raw:unknown; sampleText?:string; confidence:number };

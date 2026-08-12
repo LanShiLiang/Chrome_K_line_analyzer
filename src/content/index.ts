@@ -4,19 +4,12 @@ import { createMessage, type ExtensionMessage } from '../shared/messages';
 const CHANNEL='KLA_MARKET_RESPONSE';
 const candidates:RawMarketPayload[]=[];
 
-function injectMainWorld(){
-  if(document.documentElement.dataset.klaInjected)return;
-  document.documentElement.dataset.klaInjected='1';
-  const script=document.createElement('script');
-  script.src=chrome.runtime.getURL('inject.js');
-  script.onload=()=>script.remove();
-  (document.head||document.documentElement).appendChild(script);
-}
-
 window.addEventListener('message',(event)=>{
   if(event.source!==window||event.origin!==window.location.origin||event.data?.channel!==CHANNEL)return;
   const payload=event.data.payload as RawMarketPayload;
-  if(!payload?.url||candidates.some(c=>c.id===payload.id))return;
+  if(!payload?.url)return;
+  const existing=candidates.findIndex(c=>c.id===payload.id);
+  if(existing>=0)candidates.splice(existing,1);
   candidates.unshift(payload);
   candidates.splice(20);
   chrome.runtime.sendMessage(createMessage('MARKET_DATA_CANDIDATES','content',candidates));
@@ -46,5 +39,4 @@ function beginSelection():Promise<SelectionRange|null>{
   });
 }
 
-injectMainWorld();
 chrome.runtime.sendMessage(createMessage('PAGE_DETECTED','content',{url:location.href,title:document.title}));
