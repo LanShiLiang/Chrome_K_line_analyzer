@@ -1,0 +1,12 @@
+export type Candle = { timestamp:number; open:number; high:number; low:number; close:number; volume:number };
+export type DataQuality = { valid:boolean; candleCount:number; missingFields:string[]; warnings:string[]; score:number };
+export type MarketData = { id:string; siteId:string; symbol?:string; period?:string; timezone?:string; candles:Candle[]; source:{url:string;adapterId:string;capturedAt:number}; quality:DataQuality };
+export type SelectionRange = { pageUrl:string; tabId:number; viewport:{width:number;height:number;scrollX:number;scrollY:number;devicePixelRatio:number}; rect:{left:number;top:number;width:number;height:number}; capturedAt:number };
+export type UserConfig = { volumeMaPeriod:number; rangeLookback:number; breakoutThreshold:number; volumeSpikeRatio:number; lowVolumeRatio:number; minCandles:number; maxHistoryItems:number; debugMode:boolean };
+export const DEFAULT_CONFIG:UserConfig = { volumeMaPeriod:20, rangeLookback:60, breakoutThreshold:0.02, volumeSpikeRatio:1.8, lowVolumeRatio:0.6, minCandles:80, maxHistoryItems:100, debugMode:false };
+export type WyckoffStage = 'ACCUMULATION'|'SPRING_TEST'|'MARKUP'|'DISTRIBUTION'|'MARKDOWN'|'UNKNOWN';
+export type TradeSignal = { action:'BUY'|'SELL'|'HOLD'|'RISK'; confidence:number; price?:number; reasonCodes:string[]; explanations:string[]; riskWarnings:string[] };
+export type EvidenceItem = { code:string; label:string; detail:string; score:number };
+export type WyckoffAnalysisResult = { id:string; stage:WyckoffStage; signal:TradeSignal; volumeSummary:{average:number;latest:number;ratio:number;label:'SPIKE'|'LOW'|'NORMAL'}; keyLevels:{support:number;resistance:number}; evidence:EvidenceItem[]; warnings:string[]; createdAt:number };
+export type AnalysisHistory = { id:string; siteId:string; symbol?:string; period?:string; selection?:SelectionRange; result:WyckoffAnalysisResult; createdAt:number };
+export type RawMarketPayload = { id:string; siteId?:string; url:string; method:'GET'|'POST'; status:number; contentType?:string; requestAt:number; responseAt:number; source:'fetch'|'xhr'|'dom'; raw:unknown; sampleText?:string; confidence:number };
