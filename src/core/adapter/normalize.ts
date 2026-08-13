@@ -12,7 +12,7 @@ export function normalizeCandles(input:unknown):Candle[]{
       return {timestamp:timestamp(r.timestamp??r.time??r.t),open:n(r.open??r.o),high:n(r.high??r.h),low:n(r.low??r.l),close:n(r.close??r.c),volume:n(r.volume??r.vol??r.v)};
     }
     return null;
-  }).filter((c):c is Candle=>!!c&&Object.values(c).every(Number.isFinite)&&c.high>=Math.max(c.open,c.close)&&c.low<=Math.min(c.open,c.close)&&c.volume>=0);
+  }).filter((c):c is Candle=>!!c&&Object.values(c).every(Number.isFinite)&&c.timestamp>0&&c.high>=Math.max(c.open,c.close)&&c.low<=Math.min(c.open,c.close)&&c.volume>=0);
   return [...new Map(parsed.sort((a,b)=>a.timestamp-b.timestamp).map(c=>[c.timestamp,c])).values()];
 }
 

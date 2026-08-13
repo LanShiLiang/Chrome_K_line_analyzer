@@ -7,7 +7,7 @@ const candle=(values:unknown[]):Candle|undefined=>{
   for(const offset of [0,1]){
     if(values.length-offset<6)continue;
     const [time,open,high,low,close,volume]=values.slice(offset,offset+6).map(number);
-    if(time===undefined||open===undefined||high===undefined||low===undefined||close===undefined||volume===undefined)continue;
+    if(time===undefined||time<=0||open===undefined||high===undefined||low===undefined||close===undefined||volume===undefined)continue;
     if(high<Math.max(open,close)||low>Math.min(open,close)||volume<0)continue;
     return{timestamp:time<1e12?time*1000:time,open,high,low,close,volume};
   }
@@ -64,7 +64,8 @@ export function parseBinanceFrame(frame:string):WebSocketMarketUpdate[]{
 }
 
 export function parseWebSocketFrame(host:string,frame:string):WebSocketMarketUpdate[]{
-  if(host.includes('tradingview.com'))return parseTradingViewFrame(frame);
-  if(host.includes('binance.'))return parseBinanceFrame(frame);
+  const normalizedHost=host.toLowerCase().replace(/\.$/,'');
+  if(normalizedHost==='tradingview.com'||normalizedHost.endsWith('.tradingview.com'))return parseTradingViewFrame(frame);
+  if(normalizedHost==='binance.com'||normalizedHost.endsWith('.binance.com'))return parseBinanceFrame(frame);
   return[...parseBinanceFrame(frame),...parseTradingViewFrame(frame)];
 }
