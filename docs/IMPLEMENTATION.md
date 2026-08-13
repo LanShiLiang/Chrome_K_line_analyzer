@@ -17,7 +17,7 @@
 - TradingView 适配器解析长度前缀帧中的 `timescale_update`/`du` K 线批次；该站点协议不是公开稳定 API，升级后需用脱敏帧样本回归。
 - Binance 适配器支持官方 Kline 原始流与 combined stream 消息结构；实时流会按时间戳增量合并。
 - 插件安装、重新加载或重新构建后必须刷新目标行情页，确保 Hook 在站点创建 WebSocket 连接之前运行。
-- `npm run build` 会执行 `verify-extension-build.mjs`；如果 `content.js` 或 `inject.js` 出现 ESM 语法，构建直接失败。
+- `npm run build` 会把 UI、Content Script 和 MAIN world 注入脚本并行构建到隔离临时目录；只有版本、引用可达性、敏感文件和脚本格式审计全部通过，才会整体替换 `dist`。如果出现残留文件、缺失依赖或 Content Script ESM 语法，构建直接失败并保留上一份产物。
 - 通用解析器优先识别数组和对象 OHLCV；复杂嵌套响应需增加站点适配器。
 - 框选范围用于交互确认；未获得图表坐标轴映射时，不以像素坐标裁切时间范围。
 - 正式发布前应将 Manifest 的宽域名权限替换为已验收站点白名单。

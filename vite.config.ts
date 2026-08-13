@@ -1,10 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
-import { copyFileSync } from 'node:fs';
 
 export default defineConfig({
-  plugins: [react(), {name:'copy-manifest',closeBundle(){copyFileSync('manifest.json','dist/manifest.json')}}],
+  plugins: [react()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,

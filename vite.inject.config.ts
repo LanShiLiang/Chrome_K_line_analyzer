@@ -4,7 +4,7 @@ import{resolve}from'node:path';
 export default defineConfig({
   build:{
     outDir:'dist',
-    emptyOutDir:false,
+    emptyOutDir:true,
     lib:{entry:resolve(import.meta.dirname,'src/inject/index.ts'),name:'KlaMainWorldHook',formats:['iife'],fileName:()=> 'inject.js'},
   },
 });
