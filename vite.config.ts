@@ -12,7 +12,6 @@ export default defineConfig({
       input: {
         drawer: resolve(import.meta.dirname, 'drawer.html'),
         popup: resolve(import.meta.dirname, 'popup.html'),
-        options: resolve(import.meta.dirname, 'options.html'),
         background: resolve(import.meta.dirname, 'src/background/index.ts'),
       },
       output: {

@@ -59,6 +59,14 @@ summary svg,
   padding: 0;
   justify-content: center;
 }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-toggle {
+  color: #17b890;
+}
 .primary {
   background: #17b890;
   border-color: #17b890;
@@ -168,12 +176,32 @@ summary {
   align-items: center;
   gap: 8px;
 }
+.config-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #27343c;
+  font-size: 13px;
+}
+.config-heading span {
+  color: #8fa0aa;
+  font-size: 11px;
+}
 details label {
   display: grid;
   grid-template-columns: 1fr 90px;
   align-items: center;
   margin-top: 12px;
   font-size: 13px;
+}
+.config-checkbox {
+  justify-self: end;
+  width: 18px;
+  height: 18px;
+  accent-color: #17b890;
 }
 input {
   background: #101820;

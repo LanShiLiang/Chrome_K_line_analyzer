@@ -193,7 +193,6 @@ src/
   inject/
   drawer/
   popup/
-  options/
   core/
     adapter/
     analysis/
@@ -213,7 +212,6 @@ dist/
   drawer.html
   drawer.js
   popup.html
-  options.html
   assets/
 ```
 

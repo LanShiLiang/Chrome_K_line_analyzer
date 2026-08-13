@@ -1,10 +1,23 @@
 import React, { useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CandlestickChart, MousePointer2, RefreshCw, Settings, ShieldAlert } from 'lucide-react';
+import {
+  CandlestickChart,
+  MousePointer2,
+  RefreshCw,
+  Settings,
+  ShieldAlert,
+  ToggleRight,
+} from 'lucide-react';
 import { createChart, CandlestickSeries, HistogramSeries, ColorType } from 'lightweight-charts';
 import { createMessage } from '../shared/messages';
 import type { ExtensionMessage } from '../shared/messages';
-import type { MarketData, RawMarketPayload, WyckoffAnalysisResult } from '../core/model/types';
+import {
+  DEFAULT_CONFIG,
+  type MarketData,
+  type RawMarketPayload,
+  type UserConfig,
+  type WyckoffAnalysisResult,
+} from '../core/model/types';
 import { useDrawerStore } from './store';
 import './styles.css';
 
@@ -20,6 +33,19 @@ const withActiveTab = (callback: (tabId: number) => void) => {
 };
 function App() {
   const s = useDrawerStore();
+  const closePanel = async () => {
+    if (!extensionReady()) return;
+    try {
+      const currentWindow = await chrome.windows.getCurrent();
+      if (currentWindow.id !== undefined && typeof chrome.sidePanel.close === 'function') {
+        await chrome.sidePanel.close({ windowId: currentWindow.id });
+        return;
+      }
+    } catch (error) {
+      console.warn('无法通过 Side Panel API 关闭分析面板，将使用页面关闭兜底。', error);
+    }
+    window.close();
+  };
   const refresh = () =>
     withActiveTab((tabId) =>
       chrome.runtime.sendMessage({ ...createMessage('GET_STATE', 'drawer'), tabId }, (r) => {
@@ -28,6 +54,10 @@ function App() {
     );
   useEffect(() => {
     if (!extensionReady()) return;
+    chrome.storage.local.get('kla:userConfig', (values) => {
+      const saved = values['kla:userConfig'] as Partial<UserConfig> | undefined;
+      useDrawerStore.getState().set({ config: { ...DEFAULT_CONFIG, ...saved } });
+    });
     withActiveTab((tabId) =>
       chrome.runtime.sendMessage({ ...createMessage('GET_STATE', 'drawer'), tabId }, (r) => {
         if (r?.ok)
@@ -50,14 +80,14 @@ function App() {
       if (tabId) chrome.tabs.sendMessage(tabId, createMessage('START_SELECTION', 'drawer'));
     });
   };
-  const analyze = () => {
-    s.set({ busy: true, error: undefined });
+  const analyze = (config = s.config, showBusy = true) => {
+    if (showBusy) s.set({ busy: true, error: undefined });
     withActiveTab((tabId) =>
       chrome.runtime.sendMessage(
         {
           ...createMessage('RUN_ANALYSIS', 'drawer', {
             candidateId: s.candidates[0]?.id,
-            config: s.config,
+            config,
           }),
           tabId,
         },
@@ -73,6 +103,11 @@ function App() {
       ),
     );
   };
+  const applyConfig = (config: UserConfig) => {
+    s.set({ config });
+    if (extensionReady()) chrome.storage.local.set({ 'kla:userConfig': config });
+    if (s.result && s.candidates.length) analyze(config, false);
+  };
   return (
     <main>
       <header>
@@ -80,9 +115,26 @@ function App() {
           <span className="eyebrow">K LINE ANALYZER</span>
           <h1>量价分析台</h1>
         </div>
-        <button className="icon" title="刷新状态" onClick={refresh}>
-          <RefreshCw />
-        </button>
+        <div className="header-actions">
+          <button
+            className="icon panel-toggle"
+            type="button"
+            title="关闭分析面板"
+            aria-label="关闭分析面板"
+            onClick={closePanel}
+          >
+            <ToggleRight />
+          </button>
+          <button
+            className="icon"
+            type="button"
+            title="刷新状态"
+            aria-label="刷新状态"
+            onClick={refresh}
+          >
+            <RefreshCw />
+          </button>
+        </div>
       </header>
       <section className="status">
         <span className={s.candidates.length ? 'dot ok' : 'dot'} />
@@ -95,7 +147,11 @@ function App() {
           <MousePointer2 />
           框选 K 线
         </button>
-        <button className="primary" disabled={s.busy || !s.candidates.length} onClick={analyze}>
+        <button
+          className="primary"
+          disabled={s.busy || !s.candidates.length}
+          onClick={() => analyze()}
+        >
           <CandlestickChart />
           {s.busy ? '分析中' : '开始分析'}
         </button>
@@ -108,7 +164,7 @@ function App() {
       )}
       <Result result={s.result} />
       <Chart data={s.marketData} />
-      <Config />
+      <Config onChange={applyConfig} />
     </main>
   );
 }
@@ -201,43 +257,59 @@ function Chart({ data }: { data?: MarketData }) {
     </section>
   ) : null;
 }
-function Config() {
+const numericConfigFields: Array<{
+  key: Exclude<keyof UserConfig, 'debugMode'>;
+  label: string;
+  min: number;
+  step?: number;
+}> = [
+  { key: 'volumeMaPeriod', label: '成交量均线周期', min: 1 },
+  { key: 'rangeLookback', label: '支撑阻力分析窗口', min: 2 },
+  { key: 'breakoutThreshold', label: '突破阈值', min: 0, step: 0.01 },
+  { key: 'volumeSpikeRatio', label: '放量倍数', min: 0, step: 0.1 },
+  { key: 'lowVolumeRatio', label: '缩量倍数', min: 0, step: 0.1 },
+  { key: 'minCandles', label: '最小 K 线数量', min: 1 },
+  { key: 'maxHistoryItems', label: '最大历史记录数', min: 1 },
+];
+
+function Config({ onChange }: { onChange: (config: UserConfig) => void }) {
   const s = useDrawerStore();
+  const update = (key: keyof UserConfig, value: number | boolean) => {
+    const config: UserConfig = { ...s.config, [key]: value };
+    onChange(config);
+  };
   return (
     <details>
       <summary>
         <Settings />
         策略参数
       </summary>
+      <div className="config-heading">
+        <strong>策略设置</strong>
+        <span>修改后立即应用并自动保存</span>
+      </div>
+      {numericConfigFields.map((field) => (
+        <label key={field.key}>
+          {field.label}
+          <input
+            type="number"
+            min={field.min}
+            step={field.step}
+            value={s.config[field.key]}
+            onChange={(event) => {
+              const value = event.currentTarget.valueAsNumber;
+              if (Number.isFinite(value)) update(field.key, value);
+            }}
+          />
+        </label>
+      ))}
       <label>
-        成交量均线
+        调试模式
         <input
-          type="number"
-          value={s.config.volumeMaPeriod}
-          onChange={(e) =>
-            s.set({ config: { ...s.config, volumeMaPeriod: Number(e.target.value) } })
-          }
-        />
-      </label>
-      <label>
-        分析窗口
-        <input
-          type="number"
-          value={s.config.rangeLookback}
-          onChange={(e) =>
-            s.set({ config: { ...s.config, rangeLookback: Number(e.target.value) } })
-          }
-        />
-      </label>
-      <label>
-        放量倍数
-        <input
-          type="number"
-          step="0.1"
-          value={s.config.volumeSpikeRatio}
-          onChange={(e) =>
-            s.set({ config: { ...s.config, volumeSpikeRatio: Number(e.target.value) } })
-          }
+          className="config-checkbox"
+          type="checkbox"
+          checked={s.config.debugMode}
+          onChange={(event) => update('debugMode', event.currentTarget.checked)}
         />
       </label>
     </details>

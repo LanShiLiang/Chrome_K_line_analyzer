@@ -2,7 +2,7 @@
 
 ## 1. 文档说明
 
-本文档定义 K 线分析器插件的 Manifest V3 配置、权限边界、运行时上下文、Service Worker、Content Script、Inject Script、Drawer UI、Popup、Options 页面以及消息通信协议。
+本文档定义 K 线分析器插件的 Manifest V3 配置、权限边界、运行时上下文、Service Worker、Content Script、Inject Script、Drawer UI、Popup 以及消息通信协议。策略配置统一内嵌在 Drawer UI 中。
 
 ## 2. 设计目标
 
@@ -20,7 +20,7 @@
 {
   "manifest_version": 3,
   "name": "K Line Analyzer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "K 线量价分析与维科夫策略辅助工具",
   "action": { "default_popup": "popup.html", "default_title": "K Line Analyzer" },
   "background": { "service_worker": "background.js", "type": "module" },
@@ -34,7 +34,6 @@
       "run_at": "document_idle"
     }
   ],
-  "options_page": "options.html",
   "web_accessible_resources": [
     {
       "resources": ["inject.js", "drawer.html", "assets/*"],
@@ -71,15 +70,13 @@
 ```mermaid
 flowchart TD
     Popup["Popup\n快捷入口"]
-    Options["Options\n全局配置"]
-    Drawer["Drawer UI\n分析面板"]
+    Drawer["Drawer UI\n分析面板与策略配置"]
     BG["Background Service Worker\n事件中心"]
     CS["Content Script\nDOM/框选/桥接"]
     Inject["Inject Script\n页面主世界 Hook"]
     Page["行情网页"]
     Storage["chrome.storage.local / IndexedDB"]
     Popup --> BG
-    Options --> BG
     Drawer --> BG
     BG --> CS
     CS --> Inject
@@ -96,7 +93,6 @@ flowchart TD
 | Inject Script  | Hook Fetch/XHR，捕获响应摘要              | 不访问 chrome API            |
 | Drawer UI      | 交互、结果、配置、历史                    | 不使用危险 HTML 渲染外部文本 |
 | Popup          | 快捷入口                                  | 不承载复杂分析流程           |
-| Options        | 全局配置                                  | 不处理页面实时状态           |
 
 ## 6. 消息通信设计
 

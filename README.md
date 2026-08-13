@@ -46,9 +46,8 @@ src/content       页面识别、框选和 Inject 桥接
 src/inject        WebSocket Hook 与增量 K 线聚合
 src/core/adapter  TradingView/Binance 协议适配、OHLCV 标准化与质量校验
 src/core/analysis 维科夫量价策略引擎
-src/drawer        分析面板与图表
+src/drawer        分析面板、图表与实时策略设置
 src/popup         插件快捷入口
-src/options       全局参数设置
 tests             单元测试
 docs/spec         原始企业评审版技术方案（实现基线）
 ```

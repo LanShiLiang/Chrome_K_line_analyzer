@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { ExternalLink, Settings } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import '../drawer/styles.css';
 
 // Popup 仅提供扩展入口，核心行情与分析交互统一留在 Side Panel。
@@ -21,10 +21,6 @@ function App() {
       <button className="primary" onClick={open}>
         <ExternalLink />
         打开侧边分析面板
-      </button>
-      <button onClick={() => chrome.runtime.openOptionsPage()}>
-        <Settings />
-        设置
       </button>
       <p className="warning">分析结果仅供技术研究，不构成投资建议。</p>
     </main>
