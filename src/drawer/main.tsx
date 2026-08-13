@@ -1,24 +1,250 @@
-import React,{useEffect,useRef} from 'react';
-import{createRoot}from'react-dom/client';
-import{CandlestickChart,MousePointer2,RefreshCw,Settings,ShieldAlert}from'lucide-react';
-import{createChart,CandlestickSeries,HistogramSeries,ColorType}from'lightweight-charts';
-import{createMessage}from'../shared/messages';
-import type{ExtensionMessage}from'../shared/messages';
-import type{MarketData,RawMarketPayload,WyckoffAnalysisResult}from'../core/model/types';
-import{useDrawerStore}from'./store';
-import'./styles.css';
+import React, { useEffect, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
+import { CandlestickChart, MousePointer2, RefreshCw, Settings, ShieldAlert } from 'lucide-react';
+import { createChart, CandlestickSeries, HistogramSeries, ColorType } from 'lightweight-charts';
+import { createMessage } from '../shared/messages';
+import type { ExtensionMessage } from '../shared/messages';
+import type { MarketData, RawMarketPayload, WyckoffAnalysisResult } from '../core/model/types';
+import { useDrawerStore } from './store';
+import './styles.css';
 
-const extensionReady=()=>location.protocol==='chrome-extension:'&&typeof chrome!=='undefined';
-const withActiveTab=(callback:(tabId:number)=>void)=>{if(!extensionReady())return;chrome.tabs.query({active:true,currentWindow:true},tabs=>{const tabId=tabs[0]?.id;if(tabId!==undefined)callback(tabId)})};
-function App(){
- const s=useDrawerStore();
- const refresh=()=>withActiveTab(tabId=>chrome.runtime.sendMessage({...createMessage('GET_STATE','drawer'),tabId},r=>{if(r?.ok)s.set({candidates:r.data?.candidates??[],selection:r.data?.selection})}));
- useEffect(()=>{if(!extensionReady())return;withActiveTab(tabId=>chrome.runtime.sendMessage({...createMessage('GET_STATE','drawer'),tabId},r=>{if(r?.ok)useDrawerStore.getState().set({candidates:r.data?.candidates??[],selection:r.data?.selection})}));const listener=(m:ExtensionMessage)=>{if(m.type==='MARKET_DATA_CANDIDATES')useDrawerStore.getState().set({candidates:m.payload as RawMarketPayload[]})};chrome.runtime.onMessage.addListener(listener);return()=>chrome.runtime.onMessage.removeListener(listener)},[]);
- const select=()=>{if(!extensionReady())return;chrome.tabs.query({active:true,currentWindow:true},tabs=>{const tabId=tabs[0]?.id;if(tabId)chrome.tabs.sendMessage(tabId,createMessage('START_SELECTION','drawer'))})};
- const analyze=()=>{s.set({busy:true,error:undefined});withActiveTab(tabId=>chrome.runtime.sendMessage({...createMessage('RUN_ANALYSIS','drawer',{candidateId:s.candidates[0]?.id,config:s.config}),tabId},r=>r?.ok?s.set({busy:false,marketData:r.data.marketData,result:r.data.result,selection:r.data.selection}):s.set({busy:false,error:r?.error?.message??'分析失败'})))};
- return <main><header><div><span className="eyebrow">K LINE ANALYZER</span><h1>量价分析台</h1></div><button className="icon" title="刷新状态" onClick={refresh}><RefreshCw/></button></header><section className="status"><span className={s.candidates.length?'dot ok':'dot'}/><span>{s.candidates.length?`已捕获 ${s.candidates.length} 个候选接口`:'等待行情数据'}</span></section><div className="actions"><button onClick={select}><MousePointer2/>框选 K 线</button><button className="primary" disabled={s.busy||!s.candidates.length} onClick={analyze}><CandlestickChart/>{s.busy?'分析中':'开始分析'}</button></div>{s.error&&<p className="error"><ShieldAlert/>{s.error}</p>}<Result result={s.result}/><Chart data={s.marketData}/><Config/></main>
+const extensionReady = () =>
+  location.protocol === 'chrome-extension:' && typeof chrome !== 'undefined';
+// Drawer 始终以当前活动标签页作为查询和分析上下文。
+const withActiveTab = (callback: (tabId: number) => void) => {
+  if (!extensionReady()) return;
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tabId = tabs[0]?.id;
+    if (tabId !== undefined) callback(tabId);
+  });
+};
+function App() {
+  const s = useDrawerStore();
+  const refresh = () =>
+    withActiveTab((tabId) =>
+      chrome.runtime.sendMessage({ ...createMessage('GET_STATE', 'drawer'), tabId }, (r) => {
+        if (r?.ok) s.set({ candidates: r.data?.candidates ?? [], selection: r.data?.selection });
+      }),
+    );
+  useEffect(() => {
+    if (!extensionReady()) return;
+    withActiveTab((tabId) =>
+      chrome.runtime.sendMessage({ ...createMessage('GET_STATE', 'drawer'), tabId }, (r) => {
+        if (r?.ok)
+          useDrawerStore
+            .getState()
+            .set({ candidates: r.data?.candidates ?? [], selection: r.data?.selection });
+      }),
+    );
+    const listener = (m: ExtensionMessage) => {
+      if (m.type === 'MARKET_DATA_CANDIDATES')
+        useDrawerStore.getState().set({ candidates: m.payload as RawMarketPayload[] });
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+  }, []);
+  const select = () => {
+    if (!extensionReady()) return;
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0]?.id;
+      if (tabId) chrome.tabs.sendMessage(tabId, createMessage('START_SELECTION', 'drawer'));
+    });
+  };
+  const analyze = () => {
+    s.set({ busy: true, error: undefined });
+    withActiveTab((tabId) =>
+      chrome.runtime.sendMessage(
+        {
+          ...createMessage('RUN_ANALYSIS', 'drawer', {
+            candidateId: s.candidates[0]?.id,
+            config: s.config,
+          }),
+          tabId,
+        },
+        (r) =>
+          r?.ok
+            ? s.set({
+                busy: false,
+                marketData: r.data.marketData,
+                result: r.data.result,
+                selection: r.data.selection,
+              })
+            : s.set({ busy: false, error: r?.error?.message ?? '分析失败' }),
+      ),
+    );
+  };
+  return (
+    <main>
+      <header>
+        <div>
+          <span className="eyebrow">K LINE ANALYZER</span>
+          <h1>量价分析台</h1>
+        </div>
+        <button className="icon" title="刷新状态" onClick={refresh}>
+          <RefreshCw />
+        </button>
+      </header>
+      <section className="status">
+        <span className={s.candidates.length ? 'dot ok' : 'dot'} />
+        <span>
+          {s.candidates.length ? `已捕获 ${s.candidates.length} 个候选接口` : '等待行情数据'}
+        </span>
+      </section>
+      <div className="actions">
+        <button onClick={select}>
+          <MousePointer2 />
+          框选 K 线
+        </button>
+        <button className="primary" disabled={s.busy || !s.candidates.length} onClick={analyze}>
+          <CandlestickChart />
+          {s.busy ? '分析中' : '开始分析'}
+        </button>
+      </div>
+      {s.error && (
+        <p className="error">
+          <ShieldAlert />
+          {s.error}
+        </p>
+      )}
+      <Result result={s.result} />
+      <Chart data={s.marketData} />
+      <Config />
+    </main>
+  );
 }
-function Result({result}:{result?:WyckoffAnalysisResult}){if(!result)return <section className="empty"><CandlestickChart/><h2>等待分析</h2><p>刷新行情页面后框选目标区域，插件会从页面请求中识别 OHLCV 数据。</p></section>;return <><section className={`signal ${result.signal.action.toLowerCase()}`}><div><span>策略结论</span><strong>{result.signal.action}</strong></div><div><span>阶段</span><strong>{result.stage}</strong></div><div><span>置信度</span><strong>{result.signal.confidence}</strong></div></section><section><h2>分析依据</h2>{result.evidence.map(e=><article key={e.code}><b>{e.label}</b><p>{e.detail}</p></article>)}{result.warnings.map(w=><p className="warning" key={w}>{w}</p>)}</section></>}
-function Chart({data}:{data?:MarketData}){const ref=useRef<HTMLDivElement>(null);useEffect(()=>{if(!ref.current||!data?.candles.length)return;const chart=createChart(ref.current,{height:260,layout:{background:{type:ColorType.Solid,color:'#101820'},textColor:'#aab6be'},grid:{vertLines:{color:'#243039'},horzLines:{color:'#243039'}}});const candles=chart.addSeries(CandlestickSeries,{upColor:'#17b890',downColor:'#ef6461',wickUpColor:'#17b890',wickDownColor:'#ef6461',borderVisible:false});candles.setData(data.candles.map(c=>({time:(c.timestamp/1000) as never,open:c.open,high:c.high,low:c.low,close:c.close})));const volumes=chart.addSeries(HistogramSeries,{priceFormat:{type:'volume'},priceScaleId:''});volumes.setData(data.candles.map(c=>({time:(c.timestamp/1000) as never,value:c.volume,color:c.close>=c.open?'#17b89088':'#ef646188'})));chart.timeScale().fitContent();return()=>chart.remove()},[data]);return data?<section><h2>K线与成交量</h2><div ref={ref}/></section>:null}
-function Config(){const s=useDrawerStore();return <details><summary><Settings/>策略参数</summary><label>成交量均线<input type="number" value={s.config.volumeMaPeriod} onChange={e=>s.set({config:{...s.config,volumeMaPeriod:Number(e.target.value)}})}/></label><label>分析窗口<input type="number" value={s.config.rangeLookback} onChange={e=>s.set({config:{...s.config,rangeLookback:Number(e.target.value)}})}/></label><label>放量倍数<input type="number" step="0.1" value={s.config.volumeSpikeRatio} onChange={e=>s.set({config:{...s.config,volumeSpikeRatio:Number(e.target.value)}})}/></label></details>}
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
+function Result({ result }: { result?: WyckoffAnalysisResult }) {
+  if (!result)
+    return (
+      <section className="empty">
+        <CandlestickChart />
+        <h2>等待分析</h2>
+        <p>刷新行情页面后框选目标区域，插件会从页面请求中识别 OHLCV 数据。</p>
+      </section>
+    );
+  return (
+    <>
+      <section className={`signal ${result.signal.action.toLowerCase()}`}>
+        <div>
+          <span>策略结论</span>
+          <strong>{result.signal.action}</strong>
+        </div>
+        <div>
+          <span>阶段</span>
+          <strong>{result.stage}</strong>
+        </div>
+        <div>
+          <span>置信度</span>
+          <strong>{result.signal.confidence}</strong>
+        </div>
+      </section>
+      <section>
+        <h2>分析依据</h2>
+        {result.evidence.map((e) => (
+          <article key={e.code}>
+            <b>{e.label}</b>
+            <p>{e.detail}</p>
+          </article>
+        ))}
+        {result.warnings.map((w) => (
+          <p className="warning" key={w}>
+            {w}
+          </p>
+        ))}
+      </section>
+    </>
+  );
+}
+// 图表仅消费标准化数据，不直接依赖任何行情网站协议。
+function Chart({ data }: { data?: MarketData }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!ref.current || !data?.candles.length) return;
+    const chart = createChart(ref.current, {
+      height: 260,
+      layout: { background: { type: ColorType.Solid, color: '#101820' }, textColor: '#aab6be' },
+      grid: { vertLines: { color: '#243039' }, horzLines: { color: '#243039' } },
+    });
+    const candles = chart.addSeries(CandlestickSeries, {
+      upColor: '#17b890',
+      downColor: '#ef6461',
+      wickUpColor: '#17b890',
+      wickDownColor: '#ef6461',
+      borderVisible: false,
+    });
+    candles.setData(
+      data.candles.map((c) => ({
+        time: (c.timestamp / 1000) as never,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+      })),
+    );
+    const volumes = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: 'volume' },
+      priceScaleId: '',
+    });
+    volumes.setData(
+      data.candles.map((c) => ({
+        time: (c.timestamp / 1000) as never,
+        value: c.volume,
+        color: c.close >= c.open ? '#17b89088' : '#ef646188',
+      })),
+    );
+    chart.timeScale().fitContent();
+    return () => chart.remove();
+  }, [data]);
+  return data ? (
+    <section>
+      <h2>K线与成交量</h2>
+      <div ref={ref} />
+    </section>
+  ) : null;
+}
+function Config() {
+  const s = useDrawerStore();
+  return (
+    <details>
+      <summary>
+        <Settings />
+        策略参数
+      </summary>
+      <label>
+        成交量均线
+        <input
+          type="number"
+          value={s.config.volumeMaPeriod}
+          onChange={(e) =>
+            s.set({ config: { ...s.config, volumeMaPeriod: Number(e.target.value) } })
+          }
+        />
+      </label>
+      <label>
+        分析窗口
+        <input
+          type="number"
+          value={s.config.rangeLookback}
+          onChange={(e) =>
+            s.set({ config: { ...s.config, rangeLookback: Number(e.target.value) } })
+          }
+        />
+      </label>
+      <label>
+        放量倍数
+        <input
+          type="number"
+          step="0.1"
+          value={s.config.volumeSpikeRatio}
+          onChange={(e) =>
+            s.set({ config: { ...s.config, volumeSpikeRatio: Number(e.target.value) } })
+          }
+        />
+      </label>
+    </details>
+  );
+}
+createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);

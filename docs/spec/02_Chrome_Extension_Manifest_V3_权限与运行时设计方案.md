@@ -6,13 +6,13 @@
 
 ## 2. 设计目标
 
-| 目标 | 说明 |
-|---|---|
-| 权限最小化 | 只申请实现功能必需的权限 |
-| 上下文清晰 | 明确每类脚本运行环境和可访问能力 |
-| 通信可控 | 统一消息协议、错误码和追踪 ID |
-| 可审核 | Manifest 权限、Host 权限、CSP 可解释 |
-| 可扩展 | 支持后续增加站点、策略、配置页面 |
+| 目标       | 说明                                 |
+| ---------- | ------------------------------------ |
+| 权限最小化 | 只申请实现功能必需的权限             |
+| 上下文清晰 | 明确每类脚本运行环境和可访问能力     |
+| 通信可控   | 统一消息协议、错误码和追踪 ID        |
+| 可审核     | Manifest 权限、Host 权限、CSP 可解释 |
+| 可扩展     | 支持后续增加站点、策略、配置页面     |
 
 ## 3. Manifest V3 方案
 
@@ -27,33 +27,44 @@
   "permissions": ["storage", "scripting", "activeTab"],
   "optional_permissions": ["webRequest"],
   "host_permissions": ["https://*.example-market.com/*"],
-  "content_scripts": [{ "matches": ["https://*.example-market.com/*"], "js": ["content.js"], "run_at": "document_idle" }],
+  "content_scripts": [
+    {
+      "matches": ["https://*.example-market.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "options_page": "options.html",
-  "web_accessible_resources": [{ "resources": ["inject.js", "drawer.html", "assets/*"], "matches": ["https://*.example-market.com/*"] }],
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js", "drawer.html", "assets/*"],
+      "matches": ["https://*.example-market.com/*"]
+    }
+  ],
   "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'" }
 }
 ```
 
-| 字段 | 用途 | 落地建议 |
-|---|---|---|
-| `manifest_version` | 使用 MV3 | 固定为 3 |
-| `background.service_worker` | 后台事件中心 | 使用 ES Module |
-| `permissions.storage` | 保存配置与历史 | 必需 |
-| `permissions.scripting` | 动态注入 Inject Script | 必需 |
-| `permissions.activeTab` | 当前 Tab 受控访问 | 必需 |
-| `optional_permissions.webRequest` | 辅助识别接口 URL | 视站点适配情况启用 |
-| `host_permissions` | 限定可访问域名 | 按站点白名单配置 |
-| `web_accessible_resources` | 暴露 inject.js | 限定 matches |
+| 字段                              | 用途                   | 落地建议           |
+| --------------------------------- | ---------------------- | ------------------ |
+| `manifest_version`                | 使用 MV3               | 固定为 3           |
+| `background.service_worker`       | 后台事件中心           | 使用 ES Module     |
+| `permissions.storage`             | 保存配置与历史         | 必需               |
+| `permissions.scripting`           | 动态注入 Inject Script | 必需               |
+| `permissions.activeTab`           | 当前 Tab 受控访问      | 必需               |
+| `optional_permissions.webRequest` | 辅助识别接口 URL       | 视站点适配情况启用 |
+| `host_permissions`                | 限定可访问域名         | 按站点白名单配置   |
+| `web_accessible_resources`        | 暴露 inject.js         | 限定 matches       |
 
 ## 4. 权限设计
 
-| 权限 | 是否必需 | 使用场景 | 风险 | 控制措施 |
-|---|---|---|---|---|
-| `storage` | 是 | 用户配置、历史记录、调试日志 | 本地数据泄露 | 不存敏感身份信息，提供清理入口 |
-| `scripting` | 是 | 注入 Inject Script | 注入范围过大 | 限定 Host Permissions |
-| `activeTab` | 是 | 用户主动点击后访问当前页面 | 越权访问页面 | 只在用户交互后触发 |
-| `webRequest` | 可选 | 辅助识别接口 URL | 审核敏感 | 作为 optional 权限并说明用途 |
-| `sidePanel` | 可选 | 使用 Chrome 原生 Side Panel | 兼容性约束 | 若使用自定义 Drawer 可不申请 |
+| 权限         | 是否必需 | 使用场景                     | 风险         | 控制措施                       |
+| ------------ | -------- | ---------------------------- | ------------ | ------------------------------ |
+| `storage`    | 是       | 用户配置、历史记录、调试日志 | 本地数据泄露 | 不存敏感身份信息，提供清理入口 |
+| `scripting`  | 是       | 注入 Inject Script           | 注入范围过大 | 限定 Host Permissions          |
+| `activeTab`  | 是       | 用户主动点击后访问当前页面   | 越权访问页面 | 只在用户交互后触发             |
+| `webRequest` | 可选     | 辅助识别接口 URL             | 审核敏感     | 作为 optional 权限并说明用途   |
+| `sidePanel`  | 可选     | 使用 Chrome 原生 Side Panel  | 兼容性约束   | 若使用自定义 Drawer 可不申请   |
 
 ## 5. 运行上下文设计
 
@@ -78,14 +89,14 @@ flowchart TD
     Drawer --> Storage
 ```
 
-| 上下文 | 职责 | 禁止事项 |
-|---|---|---|
-| Service Worker | 消息路由、权限入口、Tab 状态、缓存协调 | 不保存不可恢复的长期内存状态 |
-| Content Script | 页面识别、框选遮罩、Inject 桥接、DOM 降级 | 不执行页面返回的字符串代码 |
-| Inject Script | Hook Fetch/XHR，捕获响应摘要 | 不访问 chrome API |
-| Drawer UI | 交互、结果、配置、历史 | 不使用危险 HTML 渲染外部文本 |
-| Popup | 快捷入口 | 不承载复杂分析流程 |
-| Options | 全局配置 | 不处理页面实时状态 |
+| 上下文         | 职责                                      | 禁止事项                     |
+| -------------- | ----------------------------------------- | ---------------------------- |
+| Service Worker | 消息路由、权限入口、Tab 状态、缓存协调    | 不保存不可恢复的长期内存状态 |
+| Content Script | 页面识别、框选遮罩、Inject 桥接、DOM 降级 | 不执行页面返回的字符串代码   |
+| Inject Script  | Hook Fetch/XHR，捕获响应摘要              | 不访问 chrome API            |
+| Drawer UI      | 交互、结果、配置、历史                    | 不使用危险 HTML 渲染外部文本 |
+| Popup          | 快捷入口                                  | 不承载复杂分析流程           |
+| Options        | 全局配置                                  | 不处理页面实时状态           |
 
 ## 6. 消息通信设计
 
@@ -109,8 +120,8 @@ sequenceDiagram
 export type ExtensionMessage<T = unknown> = {
   id: string;
   type: ExtensionMessageType;
-  source: "popup" | "options" | "drawer" | "background" | "content" | "inject";
-  target?: "popup" | "options" | "drawer" | "background" | "content";
+  source: 'popup' | 'options' | 'drawer' | 'background' | 'content' | 'inject';
+  target?: 'popup' | 'options' | 'drawer' | 'background' | 'content';
   tabId?: number;
   payload?: T;
   traceId: string;
@@ -126,26 +137,26 @@ export type ExtensionResponse<T = unknown> = {
 };
 ```
 
-| 消息类型 | 发送方 | 接收方 | 触发时机 | Payload |
-|---|---|---|---|---|
-| `PAGE_DETECTED` | Content | Background | 页面识别完成 | `SiteProfile` |
-| `START_SELECTION` | Drawer | Content | 用户点击框选 | 无 |
-| `SELECTION_DONE` | Content | Background | 框选完成 | `SelectionRange` |
-| `MARKET_RESPONSE_CAPTURED` | Inject | Content | 捕获接口响应 | `CapturedMarketResponse` |
-| `MARKET_DATA_CANDIDATES` | Content | Background | 候选数据更新 | `RawMarketPayload[]` |
-| `RUN_ANALYSIS` | Drawer | Background | 用户点击分析 | `AnalysisRequest` |
-| `ANALYSIS_DONE` | Background | Drawer | 分析完成 | `WyckoffAnalysisResult` |
+| 消息类型                   | 发送方     | 接收方     | 触发时机     | Payload                  |
+| -------------------------- | ---------- | ---------- | ------------ | ------------------------ |
+| `PAGE_DETECTED`            | Content    | Background | 页面识别完成 | `SiteProfile`            |
+| `START_SELECTION`          | Drawer     | Content    | 用户点击框选 | 无                       |
+| `SELECTION_DONE`           | Content    | Background | 框选完成     | `SelectionRange`         |
+| `MARKET_RESPONSE_CAPTURED` | Inject     | Content    | 捕获接口响应 | `CapturedMarketResponse` |
+| `MARKET_DATA_CANDIDATES`   | Content    | Background | 候选数据更新 | `RawMarketPayload[]`     |
+| `RUN_ANALYSIS`             | Drawer     | Background | 用户点击分析 | `AnalysisRequest`        |
+| `ANALYSIS_DONE`            | Background | Drawer     | 分析完成     | `WyckoffAnalysisResult`  |
 
 ## 7. 错误码设计
 
-| 错误码 | 场景 | 是否可恢复 | 用户提示 |
-|---|---|---|---|
-| `E_PAGE_UNSUPPORTED` | 当前网站未适配 | 是 | 当前页面暂不支持 |
-| `E_SELECTION_EMPTY` | 框选区域无效 | 是 | 请重新框选 K 线区域 |
-| `E_MARKET_DATA_NOT_FOUND` | 未捕获行情数据 | 是 | 请刷新页面或切换周期 |
-| `E_MARKET_DATA_INVALID` | OHLCV 字段不完整 | 是 | 当前数据格式暂不支持 |
-| `E_ANALYSIS_FAILED` | 策略计算异常 | 是 | 分析失败，请重试 |
-| `E_PERMISSION_DENIED` | 权限不足 | 是 | 请授予目标站点权限 |
+| 错误码                    | 场景             | 是否可恢复 | 用户提示             |
+| ------------------------- | ---------------- | ---------- | -------------------- |
+| `E_PAGE_UNSUPPORTED`      | 当前网站未适配   | 是         | 当前页面暂不支持     |
+| `E_SELECTION_EMPTY`       | 框选区域无效     | 是         | 请重新框选 K 线区域  |
+| `E_MARKET_DATA_NOT_FOUND` | 未捕获行情数据   | 是         | 请刷新页面或切换周期 |
+| `E_MARKET_DATA_INVALID`   | OHLCV 字段不完整 | 是         | 当前数据格式暂不支持 |
+| `E_ANALYSIS_FAILED`       | 策略计算异常     | 是         | 分析失败，请重试     |
+| `E_PERMISSION_DENIED`     | 权限不足         | 是         | 请授予目标站点权限   |
 
 ## 8. CSP 与安全边界
 
@@ -155,12 +166,12 @@ export type ExtensionResponse<T = unknown> = {
 
 ## 9. 边界条件
 
-| 条件 | 处理方式 |
-|---|---|
-| Service Worker 被挂起 | 所有关键状态持久化或可重建 |
-| 页面刷新 | Content Script 重新注入，重新页面识别 |
-| 多 Tab 同时分析 | 按 `tabId` 隔离状态 |
-| Inject 注入失败 | 使用 DOM 降级和用户提示 |
+| 条件                  | 处理方式                              |
+| --------------------- | ------------------------------------- |
+| Service Worker 被挂起 | 所有关键状态持久化或可重建            |
+| 页面刷新              | Content Script 重新注入，重新页面识别 |
+| 多 Tab 同时分析       | 按 `tabId` 隔离状态                   |
+| Inject 注入失败       | 使用 DOM 降级和用户提示               |
 
 ## 10. 任务拆解
 

@@ -2,14 +2,14 @@
 
 ## 决策记录
 
-| 决策 | 实现 | 原因 |
-|---|---|---|
-| UI 宿主 | Chrome Side Panel | 不改变目标网站 DOM 布局，并可与行情图并排操作 |
-| 数据捕获 | `document_start` 主世界 WebSocket Hook | 行情站点以长连接推送为主；只读监听不修改宿主帧 |
+| 决策     | 实现                                                                     | 原因                                                       |
+| -------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| UI 宿主  | Chrome Side Panel                                                        | 不改变目标网站 DOM 布局，并可与行情图并排操作              |
+| 数据捕获 | `document_start` 主世界 WebSocket Hook                                   | 行情站点以长连接推送为主；只读监听不修改宿主帧             |
 | 构建边界 | UI/Service Worker 使用 ESM；MAIN/ISOLATED Content Script 分别构建为 IIFE | Manifest Content Script 不能直接执行带静态 `import` 的产物 |
-| 适配方式 | TradingView/Binance WebSocket 适配器 + 通用 OHLCV 归一化 | 协议解析与策略数据模型解耦，便于按站点独立回归 |
-| 策略计算 | 纯函数 | 可测试、可复现、可迁移到 Web Worker |
-| 数据存储 | Chrome Storage 配置；运行数据按 Tab 内存保存 | 避免保存原始响应和敏感数据 |
+| 适配方式 | TradingView/Binance WebSocket 适配器 + 通用 OHLCV 归一化                 | 协议解析与策略数据模型解耦，便于按站点独立回归             |
+| 策略计算 | 纯函数                                                                   | 可测试、可复现、可迁移到 Web Worker                        |
+| 数据存储 | Chrome Storage 配置；运行数据按 Tab 内存保存                             | 避免保存原始响应和敏感数据                                 |
 
 ## 当前边界
 

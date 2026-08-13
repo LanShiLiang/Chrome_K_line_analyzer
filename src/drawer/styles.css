@@ -1,1 +1,183 @@
-:root{font-family:Inter,"Microsoft YaHei",sans-serif;color:#edf2f4;background:#101820;font-synthesis:none}*{box-sizing:border-box}body{margin:0;min-width:420px}main{padding:20px;display:grid;gap:16px}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2b3942;padding-bottom:14px}.eyebrow{font-size:11px;color:#17b890;letter-spacing:1.4px}h1{font-size:22px;margin:3px 0 0}h2{font-size:14px;margin:0 0 10px}button{border:1px solid #3b4b55;background:#17232b;color:#edf2f4;height:38px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;cursor:pointer}button svg,summary svg,.error svg{width:16px}.icon{width:38px;padding:0;justify-content:center}.primary{background:#17b890;border-color:#17b890;color:#07130f;font-weight:700}button:disabled{opacity:.45;cursor:not-allowed}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.status{font-size:13px;color:#aab6be;display:flex;align-items:center;gap:8px}.dot{width:8px;height:8px;border-radius:50%;background:#ef6461}.dot.ok{background:#17b890}.empty{border:1px dashed #3b4b55;min-height:180px;display:grid;place-items:center;text-align:center;padding:28px;color:#aab6be}.empty svg{width:34px}.empty h2{color:#edf2f4;margin:10px 0 0}.signal{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #33434d}.signal div{padding:12px;border-right:1px solid #33434d}.signal div:last-child{border:0}.signal span{display:block;color:#8fa0aa;font-size:11px}.signal strong{display:block;margin-top:5px}.signal.buy strong{color:#17b890}.signal.sell strong,.signal.risk strong{color:#ef6461}section,details{background:#141f26;padding:14px;border:1px solid #27343c}article{border-left:3px solid #17b890;padding:8px 10px;margin:8px 0;background:#101820}article p,.warning{font-size:12px;color:#aab6be;margin:4px 0}.warning,.error{color:#ffc857}.error{display:flex;gap:8px}summary{cursor:pointer;display:flex;align-items:center;gap:8px}details label{display:grid;grid-template-columns:1fr 90px;align-items:center;margin-top:12px;font-size:13px}input{background:#101820;border:1px solid #3b4b55;color:#fff;padding:7px}
+/* 全局基础与侧边面板布局 */
+:root {
+  font-family: Inter, 'Microsoft YaHei', sans-serif;
+  color: #edf2f4;
+  background: #101820;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 420px;
+}
+main {
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #2b3942;
+  padding-bottom: 14px;
+}
+.eyebrow {
+  font-size: 11px;
+  color: #17b890;
+  letter-spacing: 1.4px;
+}
+h1 {
+  font-size: 22px;
+  margin: 3px 0 0;
+}
+h2 {
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+/* 通用操作控件 */
+button {
+  border: 1px solid #3b4b55;
+  background: #17232b;
+  color: #edf2f4;
+  height: 38px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+button svg,
+summary svg,
+.error svg {
+  width: 16px;
+}
+.icon {
+  width: 38px;
+  padding: 0;
+  justify-content: center;
+}
+.primary {
+  background: #17b890;
+  border-color: #17b890;
+  color: #07130f;
+  font-weight: 700;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.status {
+  font-size: 13px;
+  color: #aab6be;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef6461;
+}
+.dot.ok {
+  background: #17b890;
+}
+/* 空状态与分析结果 */
+.empty {
+  border: 1px dashed #3b4b55;
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 28px;
+  color: #aab6be;
+}
+.empty svg {
+  width: 34px;
+}
+.empty h2 {
+  color: #edf2f4;
+  margin: 10px 0 0;
+}
+.signal {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid #33434d;
+}
+.signal div {
+  padding: 12px;
+  border-right: 1px solid #33434d;
+}
+.signal div:last-child {
+  border: 0;
+}
+.signal span {
+  display: block;
+  color: #8fa0aa;
+  font-size: 11px;
+}
+.signal strong {
+  display: block;
+  margin-top: 5px;
+}
+.signal.buy strong {
+  color: #17b890;
+}
+.signal.sell strong,
+.signal.risk strong {
+  color: #ef6461;
+}
+/* 内容容器与策略参数 */
+section,
+details {
+  background: #141f26;
+  padding: 14px;
+  border: 1px solid #27343c;
+}
+article {
+  border-left: 3px solid #17b890;
+  padding: 8px 10px;
+  margin: 8px 0;
+  background: #101820;
+}
+article p,
+.warning {
+  font-size: 12px;
+  color: #aab6be;
+  margin: 4px 0;
+}
+.warning,
+.error {
+  color: #ffc857;
+}
+.error {
+  display: flex;
+  gap: 8px;
+}
+summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+details label {
+  display: grid;
+  grid-template-columns: 1fr 90px;
+  align-items: center;
+  margin-top: 12px;
+  font-size: 13px;
+}
+input {
+  background: #101820;
+  border: 1px solid #3b4b55;
+  color: #fff;
+  padding: 7px;
+}

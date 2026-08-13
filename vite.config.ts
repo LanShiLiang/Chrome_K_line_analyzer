@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 
+// 扩展页面与 Service Worker 使用 ESM，共享 React 等公共依赖。
 export default defineConfig({
   plugins: [react()],
   build: {
