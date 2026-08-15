@@ -5,6 +5,7 @@ import {
   parseTradingViewFrame,
   parseWebSocketFrame,
 } from '../src/core/adapter/websocket';
+import { detectMarketSiteFromHost } from '../src/core/adapter/sites';
 
 // 使用真实协议形状的最小帧，验证 TradingView 与 Binance 解析边界。
 const framed = (value: unknown) => {
@@ -112,5 +113,7 @@ describe('WebSocket site routing', () => {
     expect(parseWebSocketFrame('www.binance.com', binanceFrame)).toHaveLength(1);
     expect(parseWebSocketFrame('evilbinance.com', binanceFrame)).toHaveLength(1);
     expect(parseWebSocketFrame('tradingview.com', binanceFrame)).toEqual([]);
+    expect(detectMarketSiteFromHost('evilbinance.com')).toBe('unsupported');
+    expect(detectMarketSiteFromHost('www.binance.com.')).toBe('binance');
   });
 });

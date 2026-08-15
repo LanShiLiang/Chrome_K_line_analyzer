@@ -9,7 +9,7 @@
 | 适用读者     | 前端开发、测试、架构、交易策略评审、发布负责人      |
 | 测试目标     | 建立“动作 → 结果 → 证据 → 报告 → 缺陷 → 复测”的闭环 |
 | 自动化范围   | 3 条确定性 E2E                                      |
-| 真实环境范围 | Agent 执行 TradingView、Binance 冒烟测试            |
+| 真实环境范围 | Agent 执行 TradingView、Binance、同花顺冒烟测试     |
 | 非目标       | 不使用 E2E 证明维科夫策略盈利能力，不执行真实交易   |
 
 ## 2. 背景与结论
@@ -32,7 +32,7 @@
 本项目采用两层测试体系：
 
 1. **确定性 E2E**：使用本地 Mock 页面和真实 WebSocket 连接，稳定覆盖完整扩展链路，作为代码回归门禁。
-2. **Agent 真实站点冒烟**：在真实 TradingView 和 Binance 页面验证当前协议兼容性、Side Panel 行为和行情一致性，输出可人工复核的报告。
+2. **Agent 真实站点冒烟**：在真实 TradingView、Binance 和同花顺页面验证当前协议兼容性、Side Panel 行为和行情一致性，输出可人工复核的报告。
 
 两者不得互相替代：确定性 E2E 判断“实现是否按设计工作”，真实站点冒烟判断“当前网站是否仍与实现兼容”。
 
@@ -49,8 +49,7 @@ flowchart LR
     SW -->|"GET_STATE / RUN_ANALYSIS"| DRAWER["Drawer 业务页面"]
     DRAWER --> CHART["K线与成交量"]
     DRAWER --> RESULT["阶段、信号、置信度、依据"]
-    AGENT["Chrome 插件 + 交易测试 Agent"] --> TV["TradingView"]
-    AGENT --> BN["Binance"]
+    AGENT["Chrome 插件 + 交易测试 Agent"] --> SITES["TradingView / Binance / 同花顺"]
     AGENT --> REPORT["冒烟报告与缺陷证据"]
 ```
 
@@ -62,7 +61,7 @@ flowchart LR
 | ---- | ---------------------------------------- | -------------------------------- | ---------------------- |
 | L1   | WebSocket 协议、OHLCV 标准化、策略纯函数 | Vitest                           | 是                     |
 | L2   | 3 条确定性扩展 E2E                       | 持久化 Chromium + 本地 Mock 服务 | 是                     |
-| L3   | TradingView/Binance 真实站点冒烟         | Agent 控制真实 Chrome            | PR 否，发布前 P0/P1 是 |
+| L3   | 三个支持站点真实冒烟                     | Agent 控制真实 Chrome            | PR 否，发布前 P0/P1 是 |
 | L4   | Side Panel 原生容器和人工观感            | Agent + 人工复核                 | 发布前是               |
 
 ## 5. 测试数据与夹具
@@ -73,7 +72,6 @@ flowchart LR
 | -------------------- | -------------------------------------------- | --------------------------------- |
 | TradingView 历史批次 | `timescale_update`、心跳、批量 OHLCV         | 至少 90 根连续 K 线               |
 | TradingView 增量帧   | 相同时间戳更新、新时间戳追加                 | 能验证覆盖和追加                  |
-| Binance Kline        | raw stream、combined stream                  | 包含 `symbol`、`period`、`k.x`    |
 | 策略场景             | 放量突破、数据不足、成交量缺失               | 期望阶段、信号和 reason code 固定 |
 | 异常帧               | 非法 JSON、截断帧、心跳、非法 OHLC、负成交量 | 不得造成未捕获异常                |
 | Mock 页面            | 在 `<head>` 中立即建立 WebSocket             | 验证 `document_start` 注入时机    |
@@ -186,7 +184,7 @@ MAIN World → ISOLATED Content Script → Service Worker
 | 3    | 点击“开始分析”                             | busy 状态出现并能恢复          | 操作 trace      |
 | 4    | 等待图表渲染                               | 显示“K线与成交量”，Canvas 非空 | 截图、像素统计  |
 | 5    | 检查策略结果                               | `MARKUP`、`BUY`、`B003`        | DOM、响应摘要   |
-| 6    | 注入少于 80 根 K 线                        | 强制 `HOLD` 并显示数据不足     | 截图、结果 JSON |
+| 6    | 注入少于用户配置数量的 K 线                | 抛出含实际数量和所需数量的错误 | 截图、错误文本  |
 | 7    | 注入成交量全零数据                         | 强制 `HOLD` 并显示成交量缺失   | 截图、结果 JSON |
 
 ### 8.3 图表和业务断言
@@ -200,7 +198,7 @@ MAIN World → ISOLATED Content Script → Service Worker
 - 支撑位为分析窗口最低 `low`，阻力位为最高 `high`。
 - `volumeSummary.ratio = latest / average`，允许误差 `1e-6`。
 - 放量突破 fixture 必须得到 `MARKUP / BUY / B003`。
-- 少于 80 根或成交量缺失时不得输出正式 `BUY/SELL`。
+- 少于用户配置数量、低于系统下限 20 根或成交量缺失时不得生成正式分析结果。
 - symbol 或 period 无法确认时，报告必须标记“数据身份未确认”；正式产品应降级为 `HOLD/UNKNOWN`，该行为需后续实现。
 - 未收盘 K 线只能产生预览结果；在模型支持 `closed` 字段前，应在报告中标记风险。
 
@@ -280,20 +278,7 @@ Agent 不得判断某个 `BUY/SELL` 是否会盈利，只判断数据身份、�
 | TV-10 | 完成一次框选并 Esc 取消一次         | 两种交互均符合预期            | 操作前后截图          | 框选           |
 | TV-11 | 检查页面、Worker、扩展 Console      | 无未解释异常                  | Console 截图/文本     | 对应上下文     |
 
-TradingView 至少覆盖两个 symbol、两个 period，其中至少一个日线和一个盘中周期。
-
-### 10.3 Binance 动作闭环
-
-| ID    | Agent 动作                          | 预期结果                          | 证据              | 失败归类    |
-| ----- | ----------------------------------- | --------------------------------- | ----------------- | ----------- |
-| BN-01 | 打开现货 K 线页面并记录交易对、周期 | 环境信息完整                      | 页面截图          | 环境        |
-| BN-02 | 等待两次当前 K 线更新               | 相同 timestamp 只更新，不重复增加 | 前后数量和 OHLCV  | 协议/聚合   |
-| BN-03 | 使用短周期观察新 K 线               | 新 timestamp 增加一根             | 前后摘要          | 协议/聚合   |
-| BN-04 | 打开 Drawer                         | 捕获候选并显示当前交易对          | 截图、Worker 摘要 | 数据身份/UI |
-| BN-05 | 数据少于 80 根时分析                | 显示数据不足并强制 `HOLD`         | 结果 JSON、截图   | 风险控制    |
-| BN-06 | 检查 Console                        | 无未捕获异常                      | Console 证据      | 对应上下文  |
-
-Binance 实时 Kline 通常持续覆盖当前未收盘蜡烛。当前实现没有主动获取历史数据，因此数据不足是预期状态，但输出正式买卖信号不是预期状态。
+TradingView 至少覆盖两个 symbol、两个 period；Binance 和同花顺分别至少覆盖一个可识别标的，并验证日、周、月周期映射。
 
 ## 11. 必须报告为缺陷的现象
 
@@ -304,7 +289,7 @@ Binance 实时 Kline 通常持续覆盖当前未收盘蜡烛。当前实现没�
 - 成交量为负、`NaN` 或无穷大。
 - 同一未收盘 K 线被重复追加。
 - 当前 K 线更新修改了其他已收盘历史 K 线。
-- 少于 80 根或成交量缺失仍输出正式 `BUY/SELL`。
+- 少于用户配置数量、低于系统下限 20 根或成交量缺失仍输出正式 `BUY/SELL`。
 - 两个 Tab 或两个 symbol 数据混合。
 - Worker 已有候选但 Drawer 一直显示等待。
 - 图表空白、K线和成交量数量不一致。
@@ -465,8 +450,7 @@ artifacts/e2e/<run-id>/
 ### 16.2 发布准入
 
 - PR 准入全部满足。
-- TradingView 至少两个 symbol、两个 period 通过。
-- Binance 至少一个交易对、两个 period 通过或明确记录地区阻塞。
+- TradingView 至少两个 symbol、两个 period 通过，Binance 和同花顺各至少一个目标页面通过。
 - Side Panel 原生打开和同屏交互通过。
 - 无未关闭的 P0/P1。
 - 所有 `FAIL/BLOCKED` 都有证据和责任归属。
@@ -480,7 +464,7 @@ artifacts/e2e/<run-id>/
 4. 为 Drawer 增加稳定的 `data-testid` 和 Canvas 可观测点，实现 E2E-02。
 5. 为框选遮罩增加稳定标识和错误可见性，实现 E2E-03。
 6. 建立统一 artifacts、JUnit 和缺陷模板。
-7. 编写 Agent TradingView/Binance 冒烟操作规程。
+7. 编写 Agent 三个支持站点的冒烟操作规程。
 8. 连续执行 10 次，修复随机失败后接入 PR 门禁。
 
 ## 18. 当前已知前置缺口
@@ -490,11 +474,9 @@ artifacts/e2e/<run-id>/
 1. Drawer 对 `tabs.sendMessage` 失败没有用户可见错误。
 2. 框选重复启动可能产生多个遮罩或残留监听器。
 3. TradingView 适配器尚未可靠提取 symbol 和 period。
-4. Binance 模型未保留 `k.x`，无法区分已收盘与未收盘 K 线。
-5. Binance 仅被动监听实时流，初始历史数据可能不足。
-6. 缓存淘汰依赖 Map 插入顺序，乱序帧可能淘汰错误 K 线。
-7. Service Worker 内存状态无法跨 Worker 生命周期恢复。
-8. MAIN → Content 固定频道缺少 schema、nonce 和输入上限。
+4. 缓存淘汰依赖 Map 插入顺序，乱序帧可能淘汰错误 K 线。
+5. Service Worker 内存状态无法跨 Worker 生命周期恢复。
+6. MAIN → Content 固定频道缺少 schema、nonce 和输入上限。
 
 这些缺口不是删除测试场景的理由；测试应先准确暴露问题，再由缺陷流转决定修复优先级。
 

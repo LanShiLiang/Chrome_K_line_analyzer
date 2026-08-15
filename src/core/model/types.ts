@@ -37,26 +37,24 @@ export type SelectionRange = {
   rect: { left: number; top: number; width: number; height: number };
   capturedAt: number;
 };
+export type AnalysisPeriod = '1d' | '1w' | '1M';
 export type UserConfig = {
-  volumeMaPeriod: number;
-  rangeLookback: number;
-  breakoutThreshold: number;
-  volumeSpikeRatio: number;
-  lowVolumeRatio: number;
-  minCandles: number;
-  maxHistoryItems: number;
-  debugMode: boolean;
+  analysisPeriod: AnalysisPeriod;
+  analysisCandleCount: number;
 };
 export const DEFAULT_CONFIG: UserConfig = {
-  volumeMaPeriod: 20,
-  rangeLookback: 60,
-  breakoutThreshold: 0.02,
-  volumeSpikeRatio: 1.8,
-  lowVolumeRatio: 0.6,
-  minCandles: 80,
-  maxHistoryItems: 100,
-  debugMode: false,
+  analysisPeriod: '1d',
+  analysisCandleCount: 200,
 };
+export const MIN_ANALYSIS_CANDLES = 20;
+export const MAX_ANALYSIS_CANDLES = 1000;
+// 策略阈值由引擎统一维护，避免用户参数彼此冲突或产生不可解释的组合。
+export const STRATEGY_DEFAULTS = {
+  volumeMaPeriod: 20,
+  breakoutThreshold: 0.01,
+  volumeSpikeRatio: 1.5,
+  lowVolumeRatio: 0.7,
+} as const;
 export type WyckoffStage =
   | 'ACCUMULATION'
   | 'SPRING_TEST'
@@ -86,15 +84,6 @@ export type WyckoffAnalysisResult = {
   keyLevels: { support: number; resistance: number };
   evidence: EvidenceItem[];
   warnings: string[];
-  createdAt: number;
-};
-export type AnalysisHistory = {
-  id: string;
-  siteId: string;
-  symbol?: string;
-  period?: string;
-  selection?: SelectionRange;
-  result: WyckoffAnalysisResult;
   createdAt: number;
 };
 export type RawMarketPayload = {

@@ -37,6 +37,11 @@ h2 {
   font-size: 14px;
   margin: 0 0 10px;
 }
+.chart-summary {
+  margin: -4px 0 12px;
+  color: #8fa0aa;
+  font-size: 12px;
+}
 /* 通用操作控件 */
 button {
   border: 1px solid #3b4b55;
@@ -189,6 +194,14 @@ summary {
 .config-heading span {
   color: #8fa0aa;
   font-size: 11px;
+  text-align: right;
+}
+.config-heading strong {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.config-body {
+  padding-bottom: 2px;
 }
 details label {
   display: grid;
@@ -204,6 +217,12 @@ details label {
   accent-color: #17b890;
 }
 input {
+  background: #101820;
+  border: 1px solid #3b4b55;
+  color: #fff;
+  padding: 7px;
+}
+select {
   background: #101820;
   border: 1px solid #3b4b55;
   color: #fff;

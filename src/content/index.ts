@@ -1,39 +1,68 @@
 import type { RawMarketPayload, SelectionRange } from '../core/model/types';
+import { isRawMarketPayload } from '../shared/guards';
 import { createMessage, type ExtensionMessage } from '../shared/messages';
 
 const CHANNEL = 'KLA_MARKET_RESPONSE';
 const candidates: RawMarketPayload[] = [];
+let bridgeActive = true;
+let cancelActiveSelection: (() => void) | undefined;
+
+const extensionContextInvalidated = (error: unknown) =>
+  !chrome.runtime?.id || String(error).includes('Extension context invalidated');
+const disableBridge = () => {
+  if (!bridgeActive) return;
+  bridgeActive = false;
+  window.removeEventListener('message', onMarketMessage);
+  cancelActiveSelection?.();
+};
+const sendToBackground = (message: ExtensionMessage) => {
+  if (!bridgeActive) return;
+  try {
+    const pending = chrome.runtime.sendMessage(message);
+    void pending.catch((error) => {
+      if (extensionContextInvalidated(error)) disableBridge();
+    });
+  } catch (error) {
+    if (extensionContextInvalidated(error)) disableBridge();
+  }
+};
 
 // 将 MAIN World 捕获的行情桥接到扩展消息总线，并按频道保留最新候选。
-window.addEventListener('message', (event) => {
+function onMarketMessage(event: MessageEvent) {
   if (
     event.source !== window ||
     event.origin !== window.location.origin ||
     event.data?.channel !== CHANNEL
   )
     return;
-  const payload = event.data.payload as RawMarketPayload;
-  if (!payload?.url) return;
+  const payload = event.data.payload;
+  if (!isRawMarketPayload(payload)) return;
   const existing = candidates.findIndex((c) => c.id === payload.id);
   if (existing >= 0) candidates.splice(existing, 1);
   candidates.unshift(payload);
   candidates.splice(20);
-  chrome.runtime.sendMessage(createMessage('MARKET_DATA_CANDIDATES', 'content', candidates));
-});
+  sendToBackground(createMessage('MARKET_DATA_CANDIDATES', 'content', candidates));
+}
+window.addEventListener('message', onMarketMessage);
 
-chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
+const onRuntimeMessage = (
+  message: ExtensionMessage,
+  _sender: chrome.runtime.MessageSender,
+  sendResponse: (response?: unknown) => void,
+) => {
   if (message.type === 'START_SELECTION') {
     beginSelection().then((selection) => {
-      if (selection)
-        chrome.runtime.sendMessage(createMessage('SELECTION_DONE', 'content', selection));
+      if (selection) sendToBackground(createMessage('SELECTION_DONE', 'content', selection));
     });
     sendResponse({ ok: true });
   }
   if (message.type === 'GET_STATE') sendResponse({ ok: true, candidates });
-});
+};
+chrome.runtime.onMessage.addListener(onRuntimeMessage);
 
 function beginSelection(): Promise<SelectionRange | null> {
   // 遮罩只记录视口坐标；它不读取或修改宿主页面的图表数据。
+  cancelActiveSelection?.();
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     Object.assign(overlay.style, {
@@ -53,10 +82,22 @@ function beginSelection(): Promise<SelectionRange | null> {
     overlay.appendChild(box);
     document.documentElement.appendChild(overlay);
     let start: { x: number; y: number } | null = null;
+    let settled = false;
     const finish = (value: SelectionRange | null) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('keydown', onKeyDown);
+      overlay.onmousedown = null;
+      overlay.onmousemove = null;
+      overlay.onmouseup = null;
       overlay.remove();
+      cancelActiveSelection = undefined;
       resolve(value);
     };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') finish(null);
+    };
+    cancelActiveSelection = () => finish(null);
     overlay.onmousedown = (e) => {
       start = { x: e.clientX, y: e.clientY };
     };
@@ -89,16 +130,10 @@ function beginSelection(): Promise<SelectionRange | null> {
         capturedAt: Date.now(),
       });
     };
-    window.addEventListener(
-      'keydown',
-      (e) => {
-        if (e.key === 'Escape') finish(null);
-      },
-      { once: true },
-    );
+    window.addEventListener('keydown', onKeyDown);
   });
 }
 
-chrome.runtime.sendMessage(
+sendToBackground(
   createMessage('PAGE_DETECTED', 'content', { url: location.href, title: document.title }),
 );
