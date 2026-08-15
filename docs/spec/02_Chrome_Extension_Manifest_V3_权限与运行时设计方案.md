@@ -6,13 +6,13 @@
 
 ## 2. 设计目标
 
-| 目标       | 说明                                  |
-| ---------- | ------------------------------------- |
-| 权限最小化 | 只申请实现功能必需的权限              |
-| 上下文清晰 | 明确每类脚本运行环境和可访问能力      |
-| 通信可控   | 统一消息协议、错误码和追踪 ID         |
-| 可审核     | Manifest 权限、Host 权限、CSP 可解释  |
-| 可维护     | 支持 TradingView 协议、策略和配置迭代 |
+| 目标       | 说明                                 |
+| ---------- | ------------------------------------ |
+| 权限最小化 | 只申请实现功能必需的权限             |
+| 上下文清晰 | 明确每类脚本运行环境和可访问能力     |
+| 通信可控   | 统一消息协议、错误码和追踪 ID        |
+| 可审核     | Manifest 权限、Host 权限、CSP 可解释 |
+| 可维护     | 支持多站点协议、策略和配置迭代       |
 
 ## 3. Manifest V3 方案
 
@@ -24,46 +24,51 @@
   "description": "K 线量价分析与维科夫策略辅助工具",
   "action": { "default_popup": "popup.html", "default_title": "K Line Analyzer" },
   "background": { "service_worker": "background.js", "type": "module" },
-  "permissions": ["storage", "scripting", "activeTab"],
-  "optional_permissions": ["webRequest"],
-  "host_permissions": ["https://*.tradingview.com/*"],
+  "permissions": ["storage", "activeTab", "sidePanel"],
+  "host_permissions": ["https://data-api.binance.vision/*", "https://d.10jqka.com.cn/*"],
   "content_scripts": [
     {
-      "matches": ["https://*.tradingview.com/*"],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
+      "matches": [
+        "https://stockpage.10jqka.com.cn/*",
+        "https://*.tradingview.com/*",
+        "https://www.binance.com/*"
+      ],
+      "js": ["inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
     {
-      "resources": ["inject.js", "drawer.html", "assets/*"],
-      "matches": ["https://*.tradingview.com/*"]
+      "matches": [
+        "https://stockpage.10jqka.com.cn/*",
+        "https://*.tradingview.com/*",
+        "https://www.binance.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
     }
   ],
+  "side_panel": { "default_path": "drawer.html" },
   "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'" }
 }
 ```
 
-| 字段                              | 用途                   | 落地建议                    |
-| --------------------------------- | ---------------------- | --------------------------- |
-| `manifest_version`                | 使用 MV3               | 固定为 3                    |
-| `background.service_worker`       | 后台事件中心           | 使用 ES Module              |
-| `permissions.storage`             | 保存配置与历史         | 必需                        |
-| `permissions.scripting`           | 动态注入 Inject Script | 必需                        |
-| `permissions.activeTab`           | 当前 Tab 受控访问      | 必需                        |
-| `optional_permissions.webRequest` | 辅助识别接口 URL       | 视 TradingView 采集需要启用 |
-| `host_permissions`                | 限定可访问域名         | 仅允许 TradingView          |
-| `web_accessible_resources`        | 暴露 inject.js         | 限定 matches                |
+| 字段                        | 用途                 | 落地建议                       |
+| --------------------------- | -------------------- | ------------------------------ |
+| `manifest_version`          | 使用 MV3             | 固定为 3                       |
+| `background.service_worker` | 后台事件中心         | 使用 ES Module                 |
+| `permissions.storage`       | 保存配置与历史       | 必需                           |
+| `permissions.activeTab`     | 当前 Tab 受控访问    | 必需                           |
+| `permissions.sidePanel`     | 提供分析侧边面板     | 必需                           |
+| `host_permissions`          | 主动请求匿名行情接口 | 仅允许 Binance、同花顺行情域名 |
+| `content_scripts.matches`   | 注入站点页面         | 仅允许当前支持的三个站点       |
 
 ## 4. 权限设计
 
-| 权限         | 是否必需 | 使用场景                     | 风险         | 控制措施                       |
-| ------------ | -------- | ---------------------------- | ------------ | ------------------------------ |
-| `storage`    | 是       | 用户配置、历史记录、调试日志 | 本地数据泄露 | 不存敏感身份信息，提供清理入口 |
-| `scripting`  | 是       | 注入 Inject Script           | 注入范围过大 | 限定 Host Permissions          |
-| `activeTab`  | 是       | 用户主动点击后访问当前页面   | 越权访问页面 | 只在用户交互后触发             |
-| `webRequest` | 可选     | 辅助识别接口 URL             | 审核敏感     | 作为 optional 权限并说明用途   |
-| `sidePanel`  | 可选     | 使用 Chrome 原生 Side Panel  | 兼容性约束   | 若使用自定义 Drawer 可不申请   |
+| 权限        | 是否必需 | 使用场景                     | 风险         | 控制措施                       |
+| ----------- | -------- | ---------------------------- | ------------ | ------------------------------ |
+| `storage`   | 是       | 用户配置、历史记录、调试日志 | 本地数据泄露 | 不存敏感身份信息，提供清理入口 |
+| `activeTab` | 是       | 用户主动点击后访问当前页面   | 越权访问页面 | 只在用户交互后触发             |
+| `sidePanel` | 是       | 使用 Chrome 原生 Side Panel  | 兼容性约束   | 仅承载本地分析界面             |
 
 ## 5. 运行上下文设计
 
@@ -90,7 +95,7 @@ flowchart TD
 | -------------- | ----------------------------------------- | ---------------------------- |
 | Service Worker | 消息路由、权限入口、Tab 状态、缓存协调    | 不保存不可恢复的长期内存状态 |
 | Content Script | 页面识别、框选遮罩、Inject 桥接、DOM 降级 | 不执行页面返回的字符串代码   |
-| Inject Script  | Hook Fetch/XHR，捕获响应摘要              | 不访问 chrome API            |
+| Inject Script  | Hook WebSocket，捕获行情帧摘要            | 不访问 chrome API            |
 | Drawer UI      | 交互、结果、配置、历史                    | 不使用危险 HTML 渲染外部文本 |
 | Popup          | 快捷入口                                  | 不承载复杂分析流程           |
 
