@@ -12,8 +12,13 @@ import { createChart, CandlestickSeries, HistogramSeries, ColorType } from 'ligh
 import { createMessage } from '../shared/messages';
 import type { ExtensionMessage } from '../shared/messages';
 import { detectMarketSite } from '../core/adapter/sites';
-import { getAnalysisConfigError, loadStoredUserConfig } from '../core/config';
 import {
+  getAnalysisConfigError,
+  loadStoredUserConfig,
+  resolveUserConfigForSite,
+} from '../core/config';
+import {
+  DEFAULT_CONFIG,
   MAX_ANALYSIS_CANDLES,
   MIN_ANALYSIS_CANDLES,
   type MarketData,
@@ -52,6 +57,25 @@ function App() {
   const isTradingView = site === 'tradingview';
   const supportsActiveRequest = site === 'binance' || site === 'tonghuashun';
   const canAnalyze = supportsActiveRequest || s.candidates.length > 0;
+  useEffect(() => {
+    if (site !== 'tradingview') return;
+    const current = useDrawerStore.getState();
+    const config = resolveUserConfigForSite(site, current.config);
+    if (
+      current.config.analysisPeriod === config.analysisPeriod &&
+      current.config.analysisCandleCount === config.analysisCandleCount
+    )
+      return;
+    analysisSequence.current += 1;
+    current.set({
+      config,
+      busy: false,
+      error: undefined,
+      marketData: undefined,
+      result: undefined,
+    });
+    if (extensionReady()) void chrome.storage.local.set({ 'kla:userConfig': config });
+  }, [site, s.config.analysisPeriod, s.config.analysisCandleCount]);
   const closePanel = async () => {
     if (!extensionReady()) return;
     try {
@@ -128,7 +152,8 @@ function App() {
   };
   const analyze = async (config = s.config, showBusy = true) => {
     const requestSequence = ++analysisSequence.current;
-    const configError = getAnalysisConfigError(config);
+    const visibleConfig = resolveUserConfigForSite(site, config);
+    const configError = getAnalysisConfigError(visibleConfig);
     if (configError) {
       s.set({ busy: false, error: configError, marketData: undefined, result: undefined });
       return;
@@ -136,10 +161,19 @@ function App() {
     if (showBusy) s.set({ busy: true, error: undefined });
     try {
       const { tabId, page } = await getActiveTabContext();
+      const requestSite = detectMarketSite(page?.url);
+      const requestConfig = resolveUserConfigForSite(requestSite, visibleConfig);
+      if (
+        requestConfig.analysisPeriod !== s.config.analysisPeriod ||
+        requestConfig.analysisCandleCount !== s.config.analysisCandleCount
+      ) {
+        s.set({ config: requestConfig });
+        if (extensionReady()) void chrome.storage.local.set({ 'kla:userConfig': requestConfig });
+      }
       const response = await chrome.runtime.sendMessage({
         ...createMessage('RUN_ANALYSIS', 'drawer', {
           candidateId: s.candidates[0]?.id,
-          config,
+          config: requestConfig,
           pageUrl: page?.url,
         }),
         tabId,
@@ -173,6 +207,10 @@ function App() {
     }
   };
   const applyConfig = (config: UserConfig) => {
+    if (isTradingView) {
+      s.set({ config: { ...DEFAULT_CONFIG } });
+      return;
+    }
     const shouldReanalyze = Boolean(s.result || s.busy) && canAnalyze;
     const wasBusy = s.busy;
     analysisSequence.current += 1;
@@ -247,7 +285,7 @@ function App() {
       )}
       <Result result={s.result} />
       <Chart data={s.marketData} />
-      <Config onChange={applyConfig} />
+      <Config disabled={isTradingView} onChange={applyConfig} />
     </main>
   );
 }
@@ -341,7 +379,13 @@ function Chart({ data }: { data?: MarketData }) {
     </section>
   ) : null;
 }
-function Config({ onChange }: { onChange: (config: UserConfig) => void }) {
+function Config({
+  disabled,
+  onChange,
+}: {
+  disabled: boolean;
+  onChange: (config: UserConfig) => void;
+}) {
   const s = useDrawerStore();
   const update = (key: keyof UserConfig, value: UserConfig[keyof UserConfig]) => {
     const config: UserConfig = { ...s.config, [key]: value };
@@ -353,14 +397,19 @@ function Config({ onChange }: { onChange: (config: UserConfig) => void }) {
         <Settings />
         策略参数
       </summary>
-      <div className="config-body">
+      <div className={`config-body${disabled ? ' is-disabled' : ''}`}>
         <div className="config-heading">
           <strong>策略设置</strong>
-          <span>分析和图表使用相同的 K 线数量，修改后立即应用并自动保存</span>
+          <span>
+            {disabled
+              ? 'TradingView 使用默认参数，当前页面不可修改'
+              : '分析和图表使用相同的 K 线数量，修改后立即应用并自动保存'}
+          </span>
         </div>
         <label>
           行情周期
           <select
+            disabled={disabled}
             value={s.config.analysisPeriod}
             onChange={(event) =>
               update('analysisPeriod', event.currentTarget.value as UserConfig['analysisPeriod'])
@@ -375,6 +424,7 @@ function Config({ onChange }: { onChange: (config: UserConfig) => void }) {
           分析 K 线数量
           <input
             type="number"
+            disabled={disabled}
             min={MIN_ANALYSIS_CANDLES}
             max={MAX_ANALYSIS_CANDLES}
             step={1}

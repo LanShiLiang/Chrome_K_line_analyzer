@@ -2,7 +2,7 @@ import { AnalysisInputError, runMarketAnalysis } from '../core/analysis/engine';
 import { ActiveMarketDataError, fetchActiveMarketData } from '../core/adapter/active';
 import { createMarketData } from '../core/adapter/normalize';
 import { detectMarketSite } from '../core/adapter/sites';
-import { getAnalysisConfigError, mergeUserConfig } from '../core/config';
+import { getAnalysisConfigError, mergeUserConfig, resolveUserConfigForSite } from '../core/config';
 import type { MarketData, SelectionRange, UserConfig } from '../core/model/types';
 import { MIN_ANALYSIS_CANDLES } from '../core/model/types';
 import { isRawMarketPayload } from '../shared/guards';
@@ -80,7 +80,7 @@ async function runAnalysis(
   if (requested.pageUrl)
     updateSessionPage(current, { url: requested.pageUrl, title: current.page?.title ?? '' });
   const site = detectMarketSite(pageUrl);
-  const config = mergeUserConfig(requested.config);
+  const config = resolveUserConfigForSite(site, mergeUserConfig(requested.config));
   const candidate =
     current.candidates.find((item) => item.id === requested.candidateId) ?? current.candidates[0];
 

@@ -6,7 +6,12 @@ import {
   runMarketAnalysis,
 } from '../src/core/analysis/engine';
 import { assessQuality } from '../src/core/adapter/normalize';
-import { getAnalysisConfigError, loadStoredUserConfig, mergeUserConfig } from '../src/core/config';
+import {
+  getAnalysisConfigError,
+  loadStoredUserConfig,
+  mergeUserConfig,
+  resolveUserConfigForSite,
+} from '../src/core/config';
 import {
   DEFAULT_CONFIG,
   MIN_ANALYSIS_CANDLES,
@@ -154,5 +159,12 @@ describe('analyzeMarket', () => {
       analysisPeriod: '1M',
       analysisCandleCount: 256,
     });
+  });
+
+  it('forces TradingView to default settings without changing other site settings', () => {
+    const custom = { analysisPeriod: '1w' as const, analysisCandleCount: 128 };
+    expect(resolveUserConfigForSite('tradingview', custom)).toEqual(DEFAULT_CONFIG);
+    expect(resolveUserConfigForSite('binance', custom)).toEqual(custom);
+    expect(resolveUserConfigForSite('tonghuashun', custom)).toEqual(custom);
   });
 });

@@ -250,6 +250,13 @@ summary {
 .config-body {
   padding-bottom: 2px;
 }
+.config-body.is-disabled {
+  opacity: 0.58;
+}
+.config-body.is-disabled select,
+.config-body.is-disabled input {
+  cursor: not-allowed;
+}
 details label {
   display: grid;
   grid-template-columns: 1fr 90px;

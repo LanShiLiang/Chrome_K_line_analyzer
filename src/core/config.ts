@@ -5,6 +5,7 @@ import {
   type AnalysisPeriod,
   type UserConfig,
 } from './model/types';
+import type { MarketSite } from './adapter/sites';
 
 const ANALYSIS_PERIODS: readonly AnalysisPeriod[] = ['1d', '1w', '1M'];
 
@@ -32,6 +33,11 @@ export function mergeUserConfig(value?: Partial<UserConfig>): UserConfig {
     analysisPeriod: value?.analysisPeriod ?? DEFAULT_CONFIG.analysisPeriod,
     analysisCandleCount: value?.analysisCandleCount ?? DEFAULT_CONFIG.analysisCandleCount,
   };
+}
+
+// TradingView 依赖页面当前周期与已捕获批次，禁止沿用其他站点的自定义请求参数。
+export function resolveUserConfigForSite(site: MarketSite, config: UserConfig): UserConfig {
+  return site === 'tradingview' ? { ...DEFAULT_CONFIG } : { ...config };
 }
 
 export function getAnalysisConfigError(config: UserConfig): string | undefined {
