@@ -1,12 +1,16 @@
 import { AnalysisInputError, runMarketAnalysis } from '../core/analysis/engine';
 import { ActiveMarketDataError, fetchActiveMarketData } from '../core/adapter/active';
-import { createMarketData } from '../core/adapter/normalize';
 import { detectMarketSite } from '../core/adapter/sites';
-import { getAnalysisConfigError, mergeUserConfig, resolveUserConfigForSite } from '../core/config';
+import {
+  getAnalysisConfigError,
+  mergeUserConfig,
+  resolveAnalysisConfigForMarket,
+  resolveUserConfigForSite,
+} from '../core/config';
 import type { MarketData, SelectionRange, UserConfig } from '../core/model/types';
-import { MIN_ANALYSIS_CANDLES } from '../core/model/types';
 import { isRawMarketPayload } from '../shared/guards';
 import { createMessage, type ExtensionMessage } from '../shared/messages';
+import { selectBestPassiveMarketData } from './market';
 import { createSession, updateSessionPage, type Session } from './session';
 
 // Service Worker 按标签页维护临时会话，并统一执行标准化与策略分析。
@@ -36,6 +40,8 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
       ? message.payload.filter(isRawMarketPayload)
       : [];
   if (message.type === 'GET_STATE') {
+    const requestedPage = message.payload as Session['page'];
+    if (requestedPage?.url) updateSessionPage(current, requestedPage);
     void hydrateSessionFromContent(tabId, current).then(() =>
       sendResponse({ ok: true, data: current }),
     );
@@ -43,11 +49,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
   }
   if (message.type === 'RUN_ANALYSIS') {
     const requested = message.payload as {
-      candidateId?: string;
       config?: UserConfig;
       pageUrl?: string;
     };
-    void runAnalysis(current, requested).then(sendResponse);
+    void runAnalysis(tabId, current, requested).then(sendResponse);
     return true;
   }
   sendResponse({ ok: true });
@@ -56,6 +61,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
 async function hydrateSessionFromContent(tabId: number, current: Session) {
   try {
     const response = await chrome.tabs.sendMessage(tabId, createMessage('GET_STATE', 'background'));
+    if (response?.ok && response.page?.url) updateSessionPage(current, response.page);
     if (response?.ok && Array.isArray(response.candidates))
       current.candidates = response.candidates.filter(isRawMarketPayload);
   } catch {
@@ -64,57 +70,80 @@ async function hydrateSessionFromContent(tabId: number, current: Session) {
 }
 
 chrome.tabs.onRemoved.addListener((tabId) => sessions.delete(tabId));
-function locationHost(url: string) {
+
+async function getAuthoritativePage(tabId: number, current: Session, requestedUrl?: string) {
+  let tabUrl: string | undefined;
+  let tabTitle = current.page?.title ?? '';
   try {
-    return new URL(url).hostname;
+    const tab = await chrome.tabs.get(tabId);
+    tabUrl = tab.url;
+    tabTitle = tab.title ?? tabTitle;
   } catch {
-    return 'generic';
+    // activeTab 权限在极少数生命周期边界可能暂时不可用，此时使用消息携带的当前 URL。
+  }
+  const pageUrl = tabUrl ?? requestedUrl ?? current.page?.url;
+  if (!pageUrl)
+    throw new AnalysisInputError('E_PAGE_CONTEXT_MISSING', '无法确认当前行情页面，请刷新后重试');
+  if (tabUrl && requestedUrl && tabUrl !== requestedUrl)
+    throw new AnalysisInputError(
+      'E_PAGE_CONTEXT_CHANGED',
+      '当前标签页已经切换，请等待页面状态同步后重新分析',
+    );
+  updateSessionPage(current, { url: pageUrl, title: tabTitle });
+  return pageUrl;
+}
+
+async function assertPageStillActive(
+  tabId: number,
+  current: Session,
+  pageUrl: string,
+  revision: number,
+) {
+  if (current.revision !== revision || current.page?.url !== pageUrl)
+    throw new AnalysisInputError(
+      'E_PAGE_CONTEXT_CHANGED',
+      '分析期间行情页面已切换，本次旧页面结果已丢弃',
+    );
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (tab.url && tab.url !== pageUrl)
+      throw new AnalysisInputError(
+        'E_PAGE_CONTEXT_CHANGED',
+        '分析期间行情页面已切换，本次旧页面结果已丢弃',
+      );
+  } catch (error) {
+    if (error instanceof AnalysisInputError) throw error;
   }
 }
 
 async function runAnalysis(
+  tabId: number,
   current: Session,
-  requested: { candidateId?: string; config?: UserConfig; pageUrl?: string },
+  requested: { config?: UserConfig; pageUrl?: string },
 ) {
-  const pageUrl = requested.pageUrl ?? current.page?.url;
-  if (requested.pageUrl)
-    updateSessionPage(current, { url: requested.pageUrl, title: current.page?.title ?? '' });
-  const site = detectMarketSite(pageUrl);
-  const config = resolveUserConfigForSite(site, mergeUserConfig(requested.config));
-  const candidate =
-    current.candidates.find((item) => item.id === requested.candidateId) ?? current.candidates[0];
-
   try {
-    const configError = getAnalysisConfigError(config);
+    const pageUrl = await getAuthoritativePage(tabId, current, requested.pageUrl);
+    const revision = current.revision;
+    const site = detectMarketSite(pageUrl);
+    const userConfig = resolveUserConfigForSite(site, mergeUserConfig(requested.config));
+    const configError = getAnalysisConfigError(userConfig);
     if (configError) throw new AnalysisInputError('E_ANALYSIS_CONFIG_INVALID', configError);
     let normalized: MarketData | undefined;
     let activeError: unknown;
     if ((site === 'binance' || site === 'tonghuashun') && pageUrl) {
       try {
-        normalized = await fetchActiveMarketData(pageUrl, config);
+        normalized = await fetchActiveMarketData(pageUrl, userConfig);
       } catch (error) {
         activeError = error;
       }
     }
 
-    if (pageUrl && current.page?.url && current.page.url !== pageUrl)
-      throw new AnalysisInputError(
-        'E_PAGE_CONTEXT_CHANGED',
-        '分析期间行情页面已切换，请在新页面重新开始分析',
-      );
+    await assertPageStillActive(tabId, current, pageUrl, revision);
 
-    if (!normalized && candidate) {
-      normalized = createMarketData(
-        candidate.raw,
-        candidate.url,
-        candidate.siteId ?? locationHost(candidate.url),
-        candidate.symbol,
-        candidate.period,
-        MIN_ANALYSIS_CANDLES,
-        'passive-websocket',
-      );
+    if (!normalized) {
+      normalized = selectBestPassiveMarketData(current.candidates, site, pageUrl);
       if (activeError)
-        normalized.quality.warnings.unshift('主动行情请求失败，本次已回退到页面被动捕获的数据');
+        normalized?.quality.warnings.unshift('主动行情请求失败，本次已回退到页面被动捕获的数据');
     }
 
     if (!normalized) {
@@ -127,13 +156,25 @@ async function runAnalysis(
       );
     }
 
-    const analysis = runMarketAnalysis(normalized, config);
+    const analysisConfig = resolveAnalysisConfigForMarket(
+      site,
+      userConfig,
+      normalized.candles.length,
+    );
+    const analysis = runMarketAnalysis(normalized, analysisConfig);
+    await assertPageStillActive(tabId, current, pageUrl, revision);
     return {
       ok: true,
       data: {
         marketData: analysis.marketData,
         result: analysis.result,
         selection: current.selection,
+        context: {
+          tabId,
+          pageUrl,
+          site,
+          mode: site === 'tradingview' ? 'current-chart' : 'configured-request',
+        },
       },
     };
   } catch (error) {

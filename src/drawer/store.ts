@@ -10,6 +10,7 @@ import {
 
 // Drawer 的瞬时 UI 状态集中管理，浏览器会话数据仍由 Service Worker 按 Tab 持有。
 type DrawerState = {
+  activeTabId?: number;
   candidates: RawMarketPayload[];
   page?: { url: string; title: string };
   selection?: SelectionRange;
@@ -17,12 +18,38 @@ type DrawerState = {
   result?: WyckoffAnalysisResult;
   config: UserConfig;
   busy: boolean;
+  syncing: boolean;
   error?: string;
   set: (patch: Partial<DrawerState>) => void;
 };
+
+export function resetTabScopedState(
+  activeTabId?: number,
+  page?: DrawerState['page'],
+): Partial<DrawerState> {
+  return {
+    activeTabId,
+    page,
+    candidates: [],
+    selection: undefined,
+    marketData: undefined,
+    result: undefined,
+    busy: false,
+    syncing: true,
+    error: undefined,
+  };
+}
+
+export const isSameTabContext = (
+  state: Pick<DrawerState, 'activeTabId' | 'page'>,
+  tabId: number,
+  page?: DrawerState['page'],
+) => state.activeTabId === tabId && state.page?.url === page?.url;
+
 export const useDrawerStore = create<DrawerState>((set) => ({
   candidates: [],
   config: DEFAULT_CONFIG,
   busy: false,
+  syncing: true,
   set,
 }));

@@ -12,6 +12,7 @@ const streams = new Map<
 
 const pendingEmits = new Map<string, RawMarketPayload>();
 let emitTimer: number | undefined;
+let pageContextUrl = location.href;
 // 高频逐笔更新只保留每个频道的最新快照，避免主线程和扩展消息队列被重复序列化淹没。
 const emit = (payload: RawMarketPayload) => {
   pendingEmits.set(payload.id, payload);
@@ -24,6 +25,11 @@ const emit = (payload: RawMarketPayload) => {
   }, EMIT_INTERVAL_MS);
 };
 const merge = (update: WebSocketMarketUpdate, url: string, openedAt: number) => {
+  if (pageContextUrl !== location.href) {
+    pageContextUrl = location.href;
+    streams.clear();
+    pendingEmits.clear();
+  }
   const key = `${update.adapterId}:${update.channel}`;
   const stream = streams.get(key) ?? { candles: new Map<number, Candle>(), update, url, openedAt };
   stream.update = update;
@@ -35,6 +41,7 @@ const merge = (update: WebSocketMarketUpdate, url: string, openedAt: number) => 
     siteId: update.siteId,
     symbol: update.symbol,
     period: update.period,
+    pageUrl: pageContextUrl,
     url,
     method: 'WS',
     status: 101,

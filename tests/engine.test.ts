@@ -10,6 +10,7 @@ import {
   getAnalysisConfigError,
   loadStoredUserConfig,
   mergeUserConfig,
+  resolveAnalysisConfigForMarket,
   resolveUserConfigForSite,
 } from '../src/core/config';
 import {
@@ -166,5 +167,28 @@ describe('analyzeMarket', () => {
     expect(resolveUserConfigForSite('tradingview', custom)).toEqual(DEFAULT_CONFIG);
     expect(resolveUserConfigForSite('binance', custom)).toEqual(custom);
     expect(resolveUserConfigForSite('tonghuashun', custom)).toEqual(custom);
+  });
+
+  it('uses the current TradingView chart size instead of a fixed strategy window', () => {
+    const custom = { analysisPeriod: '1w' as const, analysisCandleCount: 512 };
+    expect(resolveAnalysisConfigForMarket('tradingview', custom, 128)).toEqual({
+      ...DEFAULT_CONFIG,
+      analysisCandleCount: 128,
+    });
+    expect(resolveAnalysisConfigForMarket('tradingview', custom, 1500).analysisCandleCount).toBe(
+      1000,
+    );
+    expect(resolveAnalysisConfigForMarket('binance', custom, 80)).toEqual(custom);
+  });
+
+  it('does not present a Wyckoff stage or trading signal without usable volume', () => {
+    const result = analyzeMarket(
+      market(base.map((candle) => ({ ...candle, volume: 0 }))),
+      DEFAULT_CONFIG,
+    );
+    expect(result.stage).toBe('UNKNOWN');
+    expect(result.signal.action).toBe('HOLD');
+    expect(result.signal.reasonCodes).toEqual(['PRICE_ONLY']);
+    expect(result.warnings).toContain('成交量缺失，无法可靠执行量价分析');
   });
 });

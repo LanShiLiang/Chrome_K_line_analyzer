@@ -79,6 +79,7 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
   let stage: WyckoffStage = 'UNKNOWN';
   let action: 'BUY' | 'SELL' | 'HOLD' | 'RISK' = 'HOLD';
   let score = Math.round(prepared.quality.score * 0.2);
+  const hasUsableVolume = volumeAverage > 0;
 
   const breakout =
     latest.close > priorHigh * (1 + STRATEGY_DEFAULTS.breakoutThreshold) &&
@@ -95,7 +96,15 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
     average(recent.map((c) => c.volume)) < average(prior.map((c) => c.volume));
 
   // 规则按确认强度排序，避免同一窗口同时命中多个互斥阶段。
-  if (breakout) {
+  if (!hasUsableVolume) {
+    score = Math.min(score, 20);
+    evidence.push({
+      code: 'PRICE_ONLY',
+      label: '价格结构观察',
+      detail: '当前数据缺少可用成交量，未输出依赖量能确认的维科夫阶段和买卖信号',
+      score: 0,
+    });
+  } else if (breakout) {
     stage = 'MARKUP';
     action = 'BUY';
     score += 50;
@@ -153,7 +162,7 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
   }
 
   // 数据质量不足时保留形态识别结果，但禁止输出买卖动作。
-  if (candles.length < MIN_ANALYSIS_CANDLES || volumeAverage === 0) {
+  if (candles.length < MIN_ANALYSIS_CANDLES) {
     action = 'HOLD';
     score -= 25;
   }
@@ -173,8 +182,9 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
       average: volumeAverage,
       latest: latest.volume,
       ratio: volumeRatio,
-      label:
-        volumeRatio >= STRATEGY_DEFAULTS.volumeSpikeRatio
+      label: !hasUsableVolume
+        ? 'NORMAL'
+        : volumeRatio >= STRATEGY_DEFAULTS.volumeSpikeRatio
           ? 'SPIKE'
           : volumeRatio <= STRATEGY_DEFAULTS.lowVolumeRatio
             ? 'LOW'

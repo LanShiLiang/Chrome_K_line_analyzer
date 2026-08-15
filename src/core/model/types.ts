@@ -91,6 +91,7 @@ export type RawMarketPayload = {
   siteId?: string;
   symbol?: string;
   period?: string;
+  pageUrl?: string;
   url: string;
   method: 'WS';
   status: number;
