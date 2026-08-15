@@ -1,18 +1,19 @@
 # K Line Analyzer
 
-Chrome Manifest V3 纯前端 K 线量价分析插件。插件在用户当前访问的行情页面内监听 WebSocket 行情帧，将候选数据标准化为 OHLCV，并通过可解释的维科夫量价规则输出阶段、信号、置信度、关键价位和风险提示。
+Chrome Manifest V3 纯前端 K 线量价分析插件。插件按站点选择主动行情接口或页面 WebSocket，将数据统一为 OHLCV，并通过可解释的维科夫量价规则输出阶段、信号、置信度、关键价位和风险提示。
 
 ## 功能
 
 - 页面主世界 WebSocket 只读监听，不修改宿主连接、收发帧和心跳。
-- 内置 TradingView `timescale_update` 和 Binance Kline/combined stream 适配器。
+- 支持 Binance、同花顺和 TradingView：前两者优先使用公开行情接口，TradingView 使用页面 WebSocket 被动数据。
 - Content Script 框选遮罩，支持 Esc 取消。
 - Tab 级候选数据与分析上下文隔离。
 - 数组、对象两类常见 OHLCV 格式标准化。
 - 吸筹、Spring 测试、拉升、派发、下跌阶段识别。
 - 买入、卖出、观望、风险信号及原因码。
 - Lightweight Charts K 线与成交量展示。
-- 本地策略参数与 Chrome Storage 配置。
+- 用户可配置日/周/月周期和 20–1000 根分析 K 线；分析与图表使用同一数据快照。
+- 策略阈值由分析引擎统一维护，用户设置保存在 Chrome Storage。
 
 ## 环境要求
 
@@ -44,7 +45,8 @@ npm run package
 src/background    Service Worker 与 Tab Session
 src/content       页面识别、框选和 Inject 桥接
 src/inject        WebSocket Hook 与增量 K 线聚合
-src/core/adapter  TradingView/Binance 协议适配、OHLCV 标准化与质量校验
+src/core/adapter  站点主动请求、WebSocket 协议解析、OHLCV 标准化与质量校验
+src/core/config   用户配置迁移、合并与校验
 src/core/analysis 维科夫量价策略引擎
 src/drawer        分析面板、图表与实时策略设置
 src/popup         插件快捷入口
@@ -65,7 +67,8 @@ docs/spec         原始企业评审版技术方案（实现基线）
 - 不读取或存储 Cookie、Token、账号和交易账户信息。
 - 捕获失败不会影响宿主页面原始请求。
 - 所有计算和配置均保留在本地浏览器中。
-- 当前 MVP 为便于通用站点验证声明了宽域名权限；正式商店发布前必须按支持站点收敛 `host_permissions`。
+- 主动行情请求仅访问 Manifest 明确声明的 Binance 与同花顺数据域名。
+- 页面桥接数据仍属于不可信输入，进入分析前会经过结构检查、OHLCV 标准化和数量校验。
 
 ## 策略声明
 

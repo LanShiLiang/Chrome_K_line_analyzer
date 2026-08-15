@@ -1,28 +1,74 @@
 import type {
-  Candle,
   EvidenceItem,
   MarketData,
   UserConfig,
   WyckoffAnalysisResult,
   WyckoffStage,
 } from '../model/types';
+import { MIN_ANALYSIS_CANDLES, STRATEGY_DEFAULTS } from '../model/types';
+import { assessQuality } from '../adapter/normalize';
+import { getAnalysisConfigError } from '../config';
 
 const average = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 const clamp = (v: number, min = 0, max = 100) => Math.max(min, Math.min(max, v));
 const pct = (a: number, b: number) => (b === 0 ? 0 : (a - b) / b);
 
-// 基于统一 OHLCV 计算可解释的维科夫阶段、信号和证据。
+export class AnalysisInputError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'AnalysisInputError';
+  }
+}
+
+export function prepareMarketDataForAnalysis(data: MarketData, config: UserConfig): MarketData {
+  const configError = getAnalysisConfigError(config);
+  if (configError) throw new AnalysisInputError('E_ANALYSIS_CONFIG_INVALID', configError);
+  if (!data.candles.length)
+    throw new AnalysisInputError(
+      'E_MARKET_DATA_INVALID',
+      '捕获到的行情数据无有效 K 线，请确认标的和周期后刷新页面重试',
+    );
+  if (data.candles.length < config.analysisCandleCount)
+    throw new AnalysisInputError(
+      'E_ANALYSIS_CANDLES_INSUFFICIENT',
+      [
+        `当前仅获取 ${data.candles.length} 根有效 K 线，策略需要 ${config.analysisCandleCount} 根`,
+        ...data.quality.warnings.filter((warning) => warning.startsWith('已忽略')),
+      ].join('；'),
+    );
+  const candles = data.candles.slice(-config.analysisCandleCount);
+  const quality = assessQuality(candles, MIN_ANALYSIS_CANDLES);
+  quality.warnings = [...new Set([...data.quality.warnings, ...quality.warnings])];
+  return { ...data, candles, quality };
+}
+
+export function runMarketAnalysis(data: MarketData, config: UserConfig) {
+  const marketData = prepareMarketDataForAnalysis(data, config);
+  return { marketData, result: analyzePreparedMarketData(marketData) };
+}
+
+// 保留面向调用方的单结果 API；后台使用 runMarketAnalysis 同时取得同一份图表快照。
 export function analyzeMarket(data: MarketData, config: UserConfig): WyckoffAnalysisResult {
-  const candles = data.candles;
-  const warnings = [...data.quality.warnings];
-  if (!candles.length) return emptyResult(warnings.length ? warnings : ['没有可分析的 K 线数据']);
-  const window = candles.slice(-Math.max(config.rangeLookback, config.volumeMaPeriod));
+  return runMarketAnalysis(data, config).result;
+}
+
+// 基于已经校验和裁剪的统一 OHLCV 计算可解释的维科夫阶段、信号和证据。
+function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult {
+  const candles = prepared.candles;
+  const warnings = [...prepared.quality.warnings];
+  // 用户选择的分析数量就是完整的支撑、阻力和趋势观察窗口。
+  const window = candles;
   const recent = window.slice(-Math.min(10, window.length));
   const prior = window.slice(0, -Math.min(10, window.length));
   const support = Math.min(...window.map((c) => c.low));
   const resistance = Math.max(...window.map((c) => c.high));
   const latest = candles.at(-1)!;
-  const volumeAverage = average(candles.slice(-config.volumeMaPeriod).map((c) => c.volume));
+  const volumeAverage = average(
+    candles.slice(-STRATEGY_DEFAULTS.volumeMaPeriod).map((c) => c.volume),
+  );
   const volumeRatio = volumeAverage ? latest.volume / volumeAverage : 0;
   const trend = pct(latest.close, window[0].close);
   const recentHigh = Math.max(...recent.map((c) => c.high));
@@ -32,16 +78,18 @@ export function analyzeMarket(data: MarketData, config: UserConfig): WyckoffAnal
   const evidence: EvidenceItem[] = [];
   let stage: WyckoffStage = 'UNKNOWN';
   let action: 'BUY' | 'SELL' | 'HOLD' | 'RISK' = 'HOLD';
-  let score = Math.round(data.quality.score * 0.2);
+  let score = Math.round(prepared.quality.score * 0.2);
 
   const breakout =
-    latest.close > priorHigh * (1 + config.breakoutThreshold) &&
-    volumeRatio >= config.volumeSpikeRatio;
+    latest.close > priorHigh * (1 + STRATEGY_DEFAULTS.breakoutThreshold) &&
+    volumeRatio >= STRATEGY_DEFAULTS.volumeSpikeRatio;
   const breakdown =
-    latest.close < priorLow * (1 - config.breakoutThreshold) &&
-    volumeRatio >= config.volumeSpikeRatio;
+    latest.close < priorLow * (1 - STRATEGY_DEFAULTS.breakoutThreshold) &&
+    volumeRatio >= STRATEGY_DEFAULTS.volumeSpikeRatio;
   const spring =
-    latest.low < priorLow && latest.close > priorLow && volumeRatio < config.volumeSpikeRatio;
+    latest.low < priorLow &&
+    latest.close > priorLow &&
+    volumeRatio < STRATEGY_DEFAULTS.volumeSpikeRatio;
   const divergence =
     recentHigh > priorHigh &&
     average(recent.map((c) => c.volume)) < average(prior.map((c) => c.volume));
@@ -105,7 +153,7 @@ export function analyzeMarket(data: MarketData, config: UserConfig): WyckoffAnal
   }
 
   // 数据质量不足时保留形态识别结果，但禁止输出买卖动作。
-  if (candles.length < config.minCandles || volumeAverage === 0) {
+  if (candles.length < MIN_ANALYSIS_CANDLES || volumeAverage === 0) {
     action = 'HOLD';
     score -= 25;
   }
@@ -126,9 +174,9 @@ export function analyzeMarket(data: MarketData, config: UserConfig): WyckoffAnal
       latest: latest.volume,
       ratio: volumeRatio,
       label:
-        volumeRatio >= config.volumeSpikeRatio
+        volumeRatio >= STRATEGY_DEFAULTS.volumeSpikeRatio
           ? 'SPIKE'
-          : volumeRatio <= config.lowVolumeRatio
+          : volumeRatio <= STRATEGY_DEFAULTS.lowVolumeRatio
             ? 'LOW'
             : 'NORMAL',
     },
@@ -137,29 +185,4 @@ export function analyzeMarket(data: MarketData, config: UserConfig): WyckoffAnal
     warnings,
     createdAt: Date.now(),
   };
-}
-
-function emptyResult(warnings: string[]): WyckoffAnalysisResult {
-  return {
-    id: crypto.randomUUID(),
-    stage: 'UNKNOWN',
-    signal: {
-      action: 'HOLD',
-      confidence: 0,
-      reasonCodes: [],
-      explanations: [],
-      riskWarnings: warnings,
-    },
-    volumeSummary: { average: 0, latest: 0, ratio: 0, label: 'NORMAL' },
-    keyLevels: { support: 0, resistance: 0 },
-    evidence: [],
-    warnings,
-    createdAt: Date.now(),
-  };
-}
-
-export function simpleMovingAverage(candles: Candle[], period: number) {
-  return candles.map((_, i) =>
-    i < period - 1 ? null : average(candles.slice(i - period + 1, i + 1).map((c) => c.volume)),
-  );
 }

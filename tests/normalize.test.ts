@@ -22,6 +22,9 @@ describe('normalizeCandles', () => {
         [1, 10, 9, 8, 10, 1],
         [2, 10, 11, 9, 10, -1],
         [3, 'x', 11, 9, 10, 1],
+        [4, null, 11, 0, 10, 1],
+        [5, '', 11, 0, 10, 1],
+        [6, true, 11, 0, 10, 1],
       ]),
     ).toEqual([]);
   });
@@ -36,11 +39,28 @@ describe('normalizeCandles', () => {
       quality: { valid: true, candleCount: 80, score: 100 },
     });
   });
+
+  it('reports invalid or duplicate rows that were ignored', () => {
+    const data = createMarketData(
+      [
+        [1, 10, 12, 9, 11, 100],
+        [1, 10, 12, 9, 11, 100],
+        [2, 10, 9, 8, 11, 100],
+      ],
+      'wss://example.test/stream',
+      'test',
+      undefined,
+      undefined,
+      1,
+    );
+    expect(data.candles).toHaveLength(1);
+    expect(data.quality.warnings).toContain('已忽略 2 条无效或重复的 K 线数据');
+  });
 });
 
 describe('assessQuality', () => {
   it('reports insufficient data and missing volume', () => {
-    const candles = Array.from({ length: 20 }, (_, i) => ({
+    const candles = Array.from({ length: 19 }, (_, i) => ({
       timestamp: i + 1,
       open: 1,
       high: 2,

@@ -6,13 +6,13 @@
 
 ## 2. 设计目标
 
-| 目标       | 说明                                 |
-| ---------- | ------------------------------------ |
-| 权限最小化 | 只申请实现功能必需的权限             |
-| 上下文清晰 | 明确每类脚本运行环境和可访问能力     |
-| 通信可控   | 统一消息协议、错误码和追踪 ID        |
-| 可审核     | Manifest 权限、Host 权限、CSP 可解释 |
-| 可扩展     | 支持后续增加站点、策略、配置页面     |
+| 目标       | 说明                                  |
+| ---------- | ------------------------------------- |
+| 权限最小化 | 只申请实现功能必需的权限              |
+| 上下文清晰 | 明确每类脚本运行环境和可访问能力      |
+| 通信可控   | 统一消息协议、错误码和追踪 ID         |
+| 可审核     | Manifest 权限、Host 权限、CSP 可解释  |
+| 可维护     | 支持 TradingView 协议、策略和配置迭代 |
 
 ## 3. Manifest V3 方案
 
@@ -26,10 +26,10 @@
   "background": { "service_worker": "background.js", "type": "module" },
   "permissions": ["storage", "scripting", "activeTab"],
   "optional_permissions": ["webRequest"],
-  "host_permissions": ["https://*.example-market.com/*"],
+  "host_permissions": ["https://*.tradingview.com/*"],
   "content_scripts": [
     {
-      "matches": ["https://*.example-market.com/*"],
+      "matches": ["https://*.tradingview.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
@@ -37,23 +37,23 @@
   "web_accessible_resources": [
     {
       "resources": ["inject.js", "drawer.html", "assets/*"],
-      "matches": ["https://*.example-market.com/*"]
+      "matches": ["https://*.tradingview.com/*"]
     }
   ],
   "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'" }
 }
 ```
 
-| 字段                              | 用途                   | 落地建议           |
-| --------------------------------- | ---------------------- | ------------------ |
-| `manifest_version`                | 使用 MV3               | 固定为 3           |
-| `background.service_worker`       | 后台事件中心           | 使用 ES Module     |
-| `permissions.storage`             | 保存配置与历史         | 必需               |
-| `permissions.scripting`           | 动态注入 Inject Script | 必需               |
-| `permissions.activeTab`           | 当前 Tab 受控访问      | 必需               |
-| `optional_permissions.webRequest` | 辅助识别接口 URL       | 视站点适配情况启用 |
-| `host_permissions`                | 限定可访问域名         | 按站点白名单配置   |
-| `web_accessible_resources`        | 暴露 inject.js         | 限定 matches       |
+| 字段                              | 用途                   | 落地建议                    |
+| --------------------------------- | ---------------------- | --------------------------- |
+| `manifest_version`                | 使用 MV3               | 固定为 3                    |
+| `background.service_worker`       | 后台事件中心           | 使用 ES Module              |
+| `permissions.storage`             | 保存配置与历史         | 必需                        |
+| `permissions.scripting`           | 动态注入 Inject Script | 必需                        |
+| `permissions.activeTab`           | 当前 Tab 受控访问      | 必需                        |
+| `optional_permissions.webRequest` | 辅助识别接口 URL       | 视 TradingView 采集需要启用 |
+| `host_permissions`                | 限定可访问域名         | 仅允许 TradingView          |
+| `web_accessible_resources`        | 暴露 inject.js         | 限定 matches                |
 
 ## 4. 权限设计
 

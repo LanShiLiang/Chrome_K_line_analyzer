@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeMarket, simpleMovingAverage } from '../src/core/analysis/engine';
+import {
+  AnalysisInputError,
+  analyzeMarket,
+  prepareMarketDataForAnalysis,
+  runMarketAnalysis,
+} from '../src/core/analysis/engine';
 import { assessQuality } from '../src/core/adapter/normalize';
-import { DEFAULT_CONFIG, type Candle, type MarketData } from '../src/core/model/types';
+import { getAnalysisConfigError, loadStoredUserConfig, mergeUserConfig } from '../src/core/config';
+import {
+  DEFAULT_CONFIG,
+  MIN_ANALYSIS_CANDLES,
+  STRATEGY_DEFAULTS,
+  type Candle,
+  type MarketData,
+} from '../src/core/model/types';
 
 // 构造稳定的 OHLCV 序列，覆盖策略阈值、信号降级和证据输出。
 const market = (candles: Candle[]): MarketData => ({
@@ -12,7 +24,7 @@ const market = (candles: Candle[]): MarketData => ({
   quality: assessQuality(candles),
 });
 const base = Array.from(
-  { length: 90 },
+  { length: 200 },
   (_, i): Candle => ({
     timestamp: (i + 1) * 60000,
     open: 100,
@@ -28,7 +40,7 @@ describe('analyzeMarket', () => {
     const result = analyzeMarket(
       market([
         ...base,
-        { timestamp: 91 * 60000, open: 102, high: 110, low: 101, close: 109, volume: 300 },
+        { timestamp: 201 * 60000, open: 102, high: 110, low: 101, close: 109, volume: 300 },
       ]),
       DEFAULT_CONFIG,
     );
@@ -44,7 +56,7 @@ describe('analyzeMarket', () => {
     const result = analyzeMarket(
       market([
         ...base,
-        { timestamp: 91 * 60000, open: 98, high: 99, low: 88, close: 89, volume: 300 },
+        { timestamp: 201 * 60000, open: 98, high: 99, low: 88, close: 89, volume: 300 },
       ]),
       DEFAULT_CONFIG,
     );
@@ -57,7 +69,7 @@ describe('analyzeMarket', () => {
     const result = analyzeMarket(
       market([
         ...base,
-        { timestamp: 91 * 60000, open: 99, high: 101, low: 95, close: 99, volume: 100 },
+        { timestamp: 201 * 60000, open: 99, high: 101, low: 95, close: 99, volume: 100 },
       ]),
       DEFAULT_CONFIG,
     );
@@ -66,33 +78,81 @@ describe('analyzeMarket', () => {
     expect(result.signal.reasonCodes).toContain('B001');
   });
 
-  it('forces HOLD when data is insufficient even if the shape is a breakout', () => {
+  it('reports how many candles are missing instead of calculating with a partial window', () => {
     const short = base.slice(0, 20);
-    const result = analyzeMarket(
-      market([
-        ...short,
-        { timestamp: 21 * 60000, open: 102, high: 110, low: 101, close: 109, volume: 300 },
-      ]),
-      DEFAULT_CONFIG,
+    expect(() => analyzeMarket(market(short), DEFAULT_CONFIG)).toThrowError(
+      expect.objectContaining({
+        code: 'E_ANALYSIS_CANDLES_INSUFFICIENT',
+        message: expect.stringContaining('当前仅获取 20 根'),
+      }),
     );
-    expect(result.stage).toBe('MARKUP');
-    expect(result.signal.action).toBe('HOLD');
-    expect(result.warnings).toEqual(expect.arrayContaining([expect.stringContaining('数据不足')]));
   });
 
-  it('degrades safely when no data exists', () => {
-    const result = analyzeMarket(market([]), DEFAULT_CONFIG);
-    expect(result).toMatchObject({
-      stage: 'UNKNOWN',
-      signal: { action: 'HOLD', confidence: 0 },
-      keyLevels: { support: 0, resistance: 0 },
+  it('reports invalid market data when no valid candle exists', () => {
+    expect(() => analyzeMarket(market([]), DEFAULT_CONFIG)).toThrowError(
+      expect.objectContaining({ code: 'E_MARKET_DATA_INVALID' }),
+    );
+  });
+
+  it('uses exactly the configured latest candles for analysis and rendering', () => {
+    const candles = Array.from({ length: 200 }, (_, index) => ({
+      ...base[index % base.length],
+      timestamp: (index + 1) * 60000,
+    }));
+    const prepared = prepareMarketDataForAnalysis(market(candles), {
+      ...DEFAULT_CONFIG,
+      analysisCandleCount: 64,
     });
+    expect(prepared.candles).toHaveLength(64);
+    expect(prepared.candles[0].timestamp).toBe(137 * 60000);
+    expect(prepared.candles.at(-1)?.timestamp).toBe(200 * 60000);
+    const analysis = runMarketAnalysis(market(candles), {
+      ...DEFAULT_CONFIG,
+      analysisCandleCount: 64,
+    });
+    expect(analysis.marketData.candles).toHaveLength(64);
+    expect(analysis.result.keyLevels.support).toBe(98);
   });
-});
 
-describe('simpleMovingAverage', () => {
-  it('returns null until the volume window is complete', () => {
-    const candles = base.slice(0, 4).map((item, index) => ({ ...item, volume: index + 1 }));
-    expect(simpleMovingAverage(candles, 3)).toEqual([null, null, 2, 3]);
+  it('keeps only meaningful user settings and validates the analysis window', () => {
+    expect(DEFAULT_CONFIG).toEqual({
+      analysisPeriod: '1d',
+      analysisCandleCount: 200,
+    });
+    expect(MIN_ANALYSIS_CANDLES).toBe(20);
+    expect(STRATEGY_DEFAULTS).toEqual({
+      volumeMaPeriod: 20,
+      breakoutThreshold: 0.01,
+      volumeSpikeRatio: 1.5,
+      lowVolumeRatio: 0.7,
+    });
+    expect(
+      getAnalysisConfigError({
+        ...DEFAULT_CONFIG,
+        analysisCandleCount: 19,
+      }),
+    ).toBe('分析 K 线数量不能少于 20 根');
+    expect(
+      getAnalysisConfigError({
+        ...DEFAULT_CONFIG,
+        analysisCandleCount: 1001,
+      }),
+    ).toContain('不能超过');
+    expect(new AnalysisInputError('E_TEST', 'test')).toMatchObject({ code: 'E_TEST' });
+  });
+
+  it('migrates old stored settings without retaining removed strategy fields', () => {
+    expect(
+      loadStoredUserConfig({
+        analysisPeriod: '1w',
+        analysisCandleCount: 128,
+        rangeLookback: 60,
+        debugMode: true,
+      }),
+    ).toEqual({ analysisPeriod: '1w', analysisCandleCount: 128 });
+    expect(mergeUserConfig({ analysisPeriod: '1M', analysisCandleCount: 256 })).toEqual({
+      analysisPeriod: '1M',
+      analysisCandleCount: 256,
+    });
   });
 });

@@ -1,4 +1,5 @@
 import type { Candle } from '../model/types';
+import { detectMarketSiteFromHost } from './sites';
 
 export type WebSocketMarketUpdate = {
   adapterId: 'tradingview-ws' | 'binance-ws';
@@ -133,10 +134,8 @@ export function parseBinanceFrame(frame: string): WebSocketMarketUpdate[] {
 
 export function parseWebSocketFrame(host: string, frame: string): WebSocketMarketUpdate[] {
   // 已知站点只运行对应适配器；未知站点再尝试两种公开格式。
-  const normalizedHost = host.toLowerCase().replace(/\.$/, '');
-  if (normalizedHost === 'tradingview.com' || normalizedHost.endsWith('.tradingview.com'))
-    return parseTradingViewFrame(frame);
-  if (normalizedHost === 'binance.com' || normalizedHost.endsWith('.binance.com'))
-    return parseBinanceFrame(frame);
+  const site = detectMarketSiteFromHost(host);
+  if (site === 'tradingview') return parseTradingViewFrame(frame);
+  if (site === 'binance') return parseBinanceFrame(frame);
   return [...parseBinanceFrame(frame), ...parseTradingViewFrame(frame)];
 }

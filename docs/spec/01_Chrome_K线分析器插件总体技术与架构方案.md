@@ -18,7 +18,7 @@
 
 ### 1.3 方案范围
 
-项目开发一个 Chrome 插件，运行于用户浏览器中。插件通过 Content Script、Inject Script、Background Service Worker 和侧边抽屉面板协作，实现行情网站 K 线区域框选、行情接口识别、OHLCV 数据标准化、维科夫量价策略分析、买点卖点展示、历史记录与配置管理。
+项目开发一个仅面向 TradingView 的 Chrome 插件，运行于用户浏览器中。插件通过 Content Script、Inject Script、Background Service Worker 和侧边抽屉面板协作，实现 TradingView K 线区域框选、WebSocket 行情识别、OHLCV 数据标准化、维科夫量价策略分析、买点卖点展示、历史记录与配置管理。
 
 ### 1.4 不做事项
 
@@ -29,6 +29,7 @@
 | 不承诺交易收益         | 输出技术分析参考，不构成投资建议                       |
 | 不绕过目标网站安全策略 | 仅在用户主动访问网页时识别页面内可见和可请求的数据     |
 | 不支持自动下单         | 不接入券商、交易所或任何交易执行接口                   |
+| 不兼容其他行情网站     | MVP 及正式发布范围均不包含 Binance 等其他行情网站      |
 
 ## 2. 背景与目标
 
@@ -42,8 +43,8 @@
 | -------------------- | ------------------------------------------------------- |
 | 支持 Chrome 插件运行 | 可在 Chrome 开发者模式加载，后续可提交 Chrome Web Store |
 | 支持 K 线区域框选    | 用户可在行情页面上拖拽框选 K 线区间                     |
-| 支持行情接口识别     | 能识别目标行情站点页面内 Fetch/XHR 行情接口             |
-| 支持 OHLCV 标准化    | 将不同网站数据统一为 Candle 数据模型                    |
+| 支持行情接口识别     | 能识别 TradingView 页面内 WebSocket K 线消息            |
+| 支持 OHLCV 标准化    | 将 TradingView 行情数据统一为 Candle 数据模型           |
 | 支持维科夫分析       | 输出阶段判断、买点、卖点、观望和风险提示                |
 | 支持侧边抽屉 UI      | 用户可查看图表、信号、解释、参数和历史                  |
 | 支持本地缓存         | 配置和历史记录保存在浏览器本地                          |
@@ -56,9 +57,9 @@
 | 编号 | 功能     | 描述                               | 优先级 |
 | ---- | -------- | ---------------------------------- | ------ |
 | F001 | 插件加载 | 支持 Manifest V3 插件加载和运行    | P0     |
-| F002 | 页面识别 | 识别当前页面是否为支持的行情网站   | P0     |
+| F002 | 页面识别 | 识别当前页面是否为 TradingView     | P0     |
 | F003 | K 线框选 | 在页面上拖拽选择分析区域           | P0     |
-| F004 | 接口嗅探 | 监听页面内行情 Fetch/XHR 请求      | P0     |
+| F004 | 接口嗅探 | 监听页面内 TradingView WebSocket   | P0     |
 | F005 | 数据解析 | 将原始数据转为 OHLCV               | P0     |
 | F006 | 策略分析 | 基于维科夫量价规则输出信号         | P0     |
 | F007 | 结果展示 | 侧边抽屉展示信号、解释和风险       | P0     |
@@ -74,7 +75,7 @@
 | 稳定性   | 单页面采集失败不影响浏览器正常访问                 |
 | 安全     | 权限最小化，不收集敏感身份信息                     |
 | 兼容性   | 优先支持 Chrome 最新稳定版和 Chromium 内核浏览器   |
-| 可维护性 | 通过网站适配器隔离不同行情网站差异                 |
+| 可维护性 | 通过 TradingView 适配器隔离其非公开协议变化        |
 | 可测试性 | 策略引擎、数据解析、消息通信、UI 状态均可单测      |
 
 ## 4. 总体架构
@@ -93,12 +94,12 @@
 ```mermaid
 flowchart TD
     User["用户"]
-    MarketPage["行情网站页面"]
+    MarketPage["TradingView 页面"]
     ContentScript["Content Script\n页面识别/框选/桥接"]
-    InjectScript["Inject Script\nFetch/XHR Hook"]
+    InjectScript["Inject Script\nWebSocket Hook"]
     ServiceWorker["Background Service Worker\n事件中心/权限入口"]
     Drawer["侧边抽屉 UI\n结果/配置/历史"]
-    Adapter["网站适配器\n接口特征/字段映射"]
+    Adapter["TradingView 适配器\n协议帧/字段映射"]
     Normalize["OHLCV 标准化"]
     Store["状态管理 Store"]
     Engine["维科夫量价策略引擎"]
@@ -129,7 +130,7 @@ sequenceDiagram
     participant CS as Content Script
     participant INJ as Inject Script
     participant BG as Service Worker
-    participant AD as 网站适配器
+    participant AD as TradingView 适配器
     participant EN as 策略引擎
 
     U->>UI: 点击开始框选
@@ -139,7 +140,7 @@ sequenceDiagram
     CS->>BG: SELECTION_DONE
     INJ-->>CS: MARKET_RESPONSE_CAPTURED
     CS->>BG: MARKET_DATA_CANDIDATES
-    BG->>AD: 匹配网站适配器
+    BG->>AD: 解析 TradingView 协议帧
     AD-->>BG: 标准 OHLCV 数据
     BG->>EN: 执行维科夫量价分析
     EN-->>BG: 分析结果
@@ -172,17 +173,17 @@ sequenceDiagram
 
 ## 6. 模块拆分
 
-| 模块            | 职责                         | 主要输入           | 主要输出         |
-| --------------- | ---------------------------- | ------------------ | ---------------- |
-| Extension Entry | 插件入口、权限声明、页面注入 | Manifest 配置      | 插件运行上下文   |
-| Page Detector   | 判断当前网站是否支持         | URL、DOM 特征      | SiteProfile      |
-| Selection Tool  | 页面框选交互                 | 鼠标事件、视口信息 | SelectionRange   |
-| Network Capture | 捕获行情接口候选数据         | Fetch/XHR 响应     | RawMarketPayload |
-| Site Adapter    | 适配不同行情网站             | RawMarketPayload   | MarketData       |
-| Data Normalizer | 统一 OHLCV                   | 多格式行情数据     | Candle[]         |
-| Analysis Engine | 维科夫分析                   | Candle[]、配置     | AnalysisResult   |
-| Drawer UI       | 结果展示和用户操作           | Store 状态         | 页面视图         |
-| Storage         | 本地缓存                     | 配置、历史、日志   | 本地持久化数据   |
+| 模块            | 职责                           | 主要输入           | 主要输出         |
+| --------------- | ------------------------------ | ------------------ | ---------------- |
+| Extension Entry | 插件入口、权限声明、页面注入   | Manifest 配置      | 插件运行上下文   |
+| Page Detector   | 判断当前页面是否为 TradingView | URL、DOM 特征      | SiteProfile      |
+| Selection Tool  | 页面框选交互                   | 鼠标事件、视口信息 | SelectionRange   |
+| Network Capture | 捕获行情接口候选数据           | WebSocket 消息     | RawMarketPayload |
+| Site Adapter    | 解析 TradingView 协议          | RawMarketPayload   | MarketData       |
+| Data Normalizer | 统一 OHLCV                     | TradingView 行情   | Candle[]         |
+| Analysis Engine | 维科夫分析                     | Candle[]、配置     | AnalysisResult   |
+| Drawer UI       | 结果展示和用户操作             | Store 状态         | 页面视图         |
+| Storage         | 本地缓存                       | 配置、历史、日志   | 本地持久化数据   |
 
 ## 7. 部署结构
 
@@ -240,47 +241,47 @@ dist/
 
 ## 10. 风险清单
 
-| 风险编号 | 风险                  | 影响                | 概率 | 应对措施                           |
-| -------- | --------------------- | ------------------- | ---- | ---------------------------------- |
-| R001     | 行情网站接口变更      | 数据采集失败        | 高   | 网站适配器隔离，接口特征多策略匹配 |
-| R002     | Chrome 权限审核不通过 | 发布延期            | 中   | 权限最小化，准备审核说明           |
-| R003     | 策略误判              | 用户误用            | 中   | 输出置信度、解释和风险提示         |
-| R004     | 页面结构变化          | 框选或 DOM 降级失败 | 高   | 框选与数据采集解耦                 |
-| R005     | 大数据量卡顿          | 用户体验下降        | 中   | 分片计算、缓存、Web Worker 预留    |
+| 风险编号 | 风险                  | 影响                | 概率 | 应对措施                        |
+| -------- | --------------------- | ------------------- | ---- | ------------------------------- |
+| R001     | TradingView 协议变更  | 数据采集失败        | 高   | 专用适配器隔离，脱敏帧样本回归  |
+| R002     | Chrome 权限审核不通过 | 发布延期            | 中   | 权限最小化，准备审核说明        |
+| R003     | 策略误判              | 用户误用            | 中   | 输出置信度、解释和风险提示      |
+| R004     | 页面结构变化          | 框选或 DOM 降级失败 | 高   | 框选与数据采集解耦              |
+| R005     | 大数据量卡顿          | 用户体验下降        | 中   | 分片计算、缓存、Web Worker 预留 |
 
 ## 11. 落地排期
 
-| 阶段               | 周期 | 交付物                               |
-| ------------------ | ---: | ------------------------------------ |
-| 需求确认与技术预研 | 1 周 | 支持站点清单、数据样本、技术验证     |
-| 插件基础框架       | 1 周 | Manifest、Vite、React、基础通信      |
-| 接口采集与适配器   | 2 周 | Fetch/XHR Hook、适配器、OHLCV 标准化 |
-| 策略引擎           | 2 周 | 成交量分析、维科夫阶段、买卖点规则   |
-| 侧边抽屉 UI        | 2 周 | 框选、结果、配置、历史               |
-| 测试与修复         | 2 周 | 单测、E2E、兼容性、性能测试          |
-| 灰度与上线         | 1 周 | 发布包、审核材料、回滚预案           |
+| 阶段               | 周期 | 交付物                                   |
+| ------------------ | ---: | ---------------------------------------- |
+| 需求确认与技术预研 | 1 周 | TradingView 页面范围、数据样本、技术验证 |
+| 插件基础框架       | 1 周 | Manifest、Vite、React、基础通信          |
+| 接口采集与适配器   | 2 周 | Fetch/XHR Hook、适配器、OHLCV 标准化     |
+| 策略引擎           | 2 周 | 成交量分析、维科夫阶段、买卖点规则       |
+| 侧边抽屉 UI        | 2 周 | 框选、结果、配置、历史                   |
+| 测试与修复         | 2 周 | 单测、E2E、兼容性、性能测试              |
+| 灰度与上线         | 1 周 | 发布包、审核材料、回滚预案               |
 
 ## 12. 验收标准
 
-| 验收项     | 标准                                      |
-| ---------- | ----------------------------------------- |
-| 插件加载   | Chrome 开发者模式加载无错误               |
-| 框选能力   | 支持目标行情页面框选并获取 SelectionRange |
-| 数据采集   | 支持至少 2 个目标网站行情数据识别         |
-| 数据标准化 | OHLCV 字段完整率达到 99%                  |
-| 策略输出   | 能输出阶段、信号、置信度和解释            |
-| UI 展示    | 侧边抽屉完整展示分析结果和风险提示        |
-| 性能       | 1000 根 K 线分析低于 300ms                |
+| 验收项     | 标准                                       |
+| ---------- | ------------------------------------------ |
+| 插件加载   | Chrome 开发者模式加载无错误                |
+| 框选能力   | 支持目标行情页面框选并获取 SelectionRange  |
+| 数据采集   | TradingView 至少 2 个 symbol、2 个周期通过 |
+| 数据标准化 | OHLCV 字段完整率达到 99%                   |
+| 策略输出   | 能输出阶段、信号、置信度和解释             |
+| UI 展示    | 侧边抽屉完整展示分析结果和风险提示         |
+| 性能       | 1000 根 K 线分析低于 300ms                 |
 
 ## 13. 任务拆解
 
 ```text
 T1 初始化 Manifest V3 + Vite + React + TypeScript 工程
 T2 实现 Background Service Worker、Content Script、Inject Script 基础通信
-T3 实现页面识别和支持站点配置
+T3 实现 TradingView 页面识别和域名配置
 T4 实现 K 线框选遮罩和 SelectionRange 计算
 T5 实现 Fetch/XHR Hook 与候选行情响应收集
-T6 实现网站适配器和 OHLCV 标准化
+T6 实现 TradingView 适配器和 OHLCV 标准化
 T7 实现 Zustand Store 和本地缓存
 T8 实现维科夫策略分析引擎
 T9 实现侧边抽屉 UI、配置、历史和导出

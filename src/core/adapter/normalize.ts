@@ -1,6 +1,10 @@
 import type { Candle, DataQuality, MarketData } from '../model/types';
 
-const n = (value: unknown) => (typeof value === 'number' ? value : Number(value));
+const n = (value: unknown) => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.trim()) return Number(value);
+  return Number.NaN;
+};
 const timestamp = (value: unknown) => {
   const v = n(value);
   return v < 1e12 ? v * 1000 : v;
@@ -49,7 +53,7 @@ export function normalizeCandles(input: unknown): Candle[] {
   ];
 }
 
-export function assessQuality(candles: Candle[], minCandles = 80): DataQuality {
+export function assessQuality(candles: Candle[], minCandles = 20): DataQuality {
   // 数据量和成交量是量价策略可执行的最低质量门槛。
   const warnings: string[] = [];
   if (candles.length < minCandles) warnings.push(`数据不足：至少需要 ${minCandles} 根 K 线`);
@@ -76,6 +80,8 @@ export function createMarketData(
   siteId = 'generic',
   symbol?: string,
   period?: string,
+  minCandles = 20,
+  adapterId = 'generic-ohlcv',
 ): MarketData {
   // 适配器输出最终都在此汇总为策略引擎使用的统一模型。
   const candidates =
@@ -83,13 +89,17 @@ export function createMarketData(
       ? (Object.values(raw as Record<string, unknown>).find(Array.isArray) ?? raw)
       : raw;
   const candles = normalizeCandles(candidates);
+  const quality = assessQuality(candles, minCandles);
+  const inputCount = Array.isArray(candidates) ? candidates.length : 0;
+  const ignoredCount = Math.max(0, inputCount - candles.length);
+  if (ignoredCount) quality.warnings.unshift(`已忽略 ${ignoredCount} 条无效或重复的 K 线数据`);
   return {
     id: crypto.randomUUID(),
     siteId,
     symbol,
     period,
     candles,
-    source: { url: sourceUrl, adapterId: 'generic-ohlcv', capturedAt: Date.now() },
-    quality: assessQuality(candles),
+    source: { url: sourceUrl, adapterId, capturedAt: Date.now() },
+    quality,
   };
 }

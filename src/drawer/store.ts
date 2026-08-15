@@ -11,6 +11,7 @@ import {
 // Drawer 的瞬时 UI 状态集中管理，浏览器会话数据仍由 Service Worker 按 Tab 持有。
 type DrawerState = {
   candidates: RawMarketPayload[];
+  page?: { url: string; title: string };
   selection?: SelectionRange;
   marketData?: MarketData;
   result?: WyckoffAnalysisResult;
