@@ -188,7 +188,7 @@ function App() {
     if (shouldReanalyze) void analyze(config, wasBusy);
   };
   return (
-    <main>
+    <main className="drawer-shell">
       <header>
         <div>
           <span className="eyebrow">K LINE ANALYZER</span>
