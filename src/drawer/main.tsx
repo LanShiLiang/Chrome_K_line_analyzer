@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import {
   CandlestickChart,
   MousePointer2,
-  RefreshCw,
+  RotateCcw,
   Settings,
   ShieldAlert,
   ToggleRight,
@@ -32,7 +32,7 @@ import {
   type UserConfig,
   type WyckoffAnalysisResult,
 } from '../core/model/types';
-import { isSameTabContext, resetTabScopedState, useDrawerStore } from './store';
+import { hasConflictingPage, isSameTabContext, resetTabScopedState, useDrawerStore } from './store';
 import './styles.css';
 
 const extensionReady = () =>
@@ -108,7 +108,7 @@ function App() {
       if (
         requestId !== syncSequence.current ||
         confirmed.tabId !== context.tabId ||
-        confirmed.page?.url !== context.page?.url
+        hasConflictingPage(confirmed.page, context.page)
       )
         return false;
 
@@ -155,7 +155,25 @@ function App() {
     }
     window.close();
   };
-  const refresh = () => syncActiveTab();
+  const resetAnalyzer = async () => {
+    analysisSequence.current += 1;
+    const current = useDrawerStore.getState();
+    current.set({
+      config: { ...DEFAULT_CONFIG },
+      busy: false,
+      error: undefined,
+      selection: undefined,
+      marketData: undefined,
+      result: undefined,
+    });
+    if (!extensionReady()) return;
+    await chrome.storage.local.set({ 'kla:userConfig': DEFAULT_CONFIG });
+    if (current.activeTabId !== undefined)
+      await chrome.runtime.sendMessage({
+        ...createMessage('RESET_ANALYSIS', 'drawer'),
+        tabId: current.activeTabId,
+      });
+  };
 
   useEffect(() => {
     if (!extensionReady()) return;
@@ -175,12 +193,21 @@ function App() {
       }
     })();
     const messageListener = (m: ExtensionMessage, sender: chrome.runtime.MessageSender) => {
-      if (m.type !== 'MARKET_DATA_CANDIDATES' || sender.tab?.id === undefined) return;
+      if (sender.tab?.id === undefined) return;
       const current = useDrawerStore.getState();
-      if (sender.tab.id !== current.activeTabId || !Array.isArray(m.payload)) return;
-      current.set({
-        candidates: candidatesForSite(m.payload as RawMarketPayload[], current.page?.url),
-      });
+      if (sender.tab.id !== current.activeTabId) return;
+      if (m.type === 'PAGE_DETECTED') {
+        const page = m.payload as ActiveTabContext['page'];
+        if (!page?.url) return;
+        analysisSequence.current += 1;
+        current.set(resetTabScopedState(sender.tab.id, page));
+        void syncActiveTab(sender.tab.id);
+        return;
+      }
+      if (m.type === 'MARKET_DATA_CANDIDATES' && Array.isArray(m.payload))
+        current.set({
+          candidates: candidatesForSite(m.payload as RawMarketPayload[], current.page?.url),
+        });
     };
     const activatedListener = (activeInfo: { tabId: number; windowId: number }) => {
       if (windowId.current !== undefined && activeInfo.windowId !== windowId.current) return;
@@ -195,18 +222,9 @@ function App() {
       tab: chrome.tabs.Tab,
     ) => {
       const current = useDrawerStore.getState();
-      if (
-        tabId !== current.activeTabId ||
-        (changeInfo.url === undefined && changeInfo.status !== 'loading')
-      )
-        return;
+      if (tabId !== current.activeTabId || changeInfo.url === undefined) return;
       analysisSequence.current += 1;
-      current.set(
-        resetTabScopedState(
-          tabId,
-          changeInfo.url ? { url: changeInfo.url, title: tab.title ?? '' } : current.page,
-        ),
-      );
+      current.set(resetTabScopedState(tabId, { url: changeInfo.url, title: tab.title ?? '' }));
       void syncActiveTab(tabId);
     };
     chrome.runtime.onMessage.addListener(messageListener);
@@ -231,14 +249,15 @@ function App() {
   const analyze = async (config = s.config, showBusy = true) => {
     let requestSequence = ++analysisSequence.current;
     try {
-      const { tabId, page } = await getActiveTabContext();
+      const { tabId, page: observedPage } = await getActiveTabContext();
       let current = useDrawerStore.getState();
-      if (!isSameTabContext(current, tabId, page)) {
+      if (!isSameTabContext(current, tabId, observedPage)) {
         await syncActiveTab(tabId);
         current = useDrawerStore.getState();
         requestSequence = ++analysisSequence.current;
       }
-      if (!isSameTabContext(current, tabId, page) || current.syncing)
+      const page = observedPage ?? current.page;
+      if (!isSameTabContext(current, tabId, observedPage) || current.syncing || !page?.url)
         throw new Error('当前标签页正在切换，请稍后重新分析');
       const requestSite = detectMarketSite(page?.url);
       const requestConfig = resolveUserConfigForSite(requestSite, config);
@@ -333,11 +352,11 @@ function App() {
           <button
             className="icon"
             type="button"
-            title="刷新状态"
-            aria-label="刷新状态"
-            onClick={() => void refresh()}
+            title="重置分析台"
+            aria-label="重置分析台"
+            onClick={() => void resetAnalyzer()}
           >
-            <RefreshCw />
+            <RotateCcw />
           </button>
         </div>
       </header>
@@ -486,7 +505,12 @@ function Chart({ data }: { data?: MarketData }) {
       {!data.candles.some((c) => c.volume > 0) && (
         <p className="warning">当前图表数据不含成交量，仅展示 K 线并降级为价格结构分析</p>
       )}
-      <div className="market-chart" ref={ref} />
+      <div
+        className="market-chart"
+        data-testid="market-chart"
+        data-candle-count={data.candles.length}
+        ref={ref}
+      />
     </section>
   ) : null;
 }

@@ -44,7 +44,10 @@ export const isSameTabContext = (
   state: Pick<DrawerState, 'activeTabId' | 'page'>,
   tabId: number,
   page?: DrawerState['page'],
-) => state.activeTabId === tabId && state.page?.url === page?.url;
+) => state.activeTabId === tabId && (!page?.url || state.page?.url === page.url);
+
+export const hasConflictingPage = (left?: DrawerState['page'], right?: DrawerState['page']) =>
+  Boolean(left?.url && right?.url && left.url !== right.url);
 
 export const useDrawerStore = create<DrawerState>((set) => ({
   candidates: [],

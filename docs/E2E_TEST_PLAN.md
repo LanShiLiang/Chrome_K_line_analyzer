@@ -253,6 +253,22 @@ MAIN World → ISOLATED Content Script → Service Worker
 
 ## 10. Agent 真实站点冒烟
 
+### 10.0 已实现的 Binance Spot 自动化门禁
+
+执行命令：`npm run test:e2e:binance`。
+
+固定页面：`https://www.binance.com/en/trade/ETH_USDT?type=spot`。
+
+当前自动化会加载最新 `dist`，并验证：
+
+1. 即使 `activeTab` 暂时不暴露 URL，Drawer 仍能通过 Tab ID 和 Content Script 页面上下文识别 Binance；
+2. 点击“开始分析”后展示最近 200 根 K 线，Canvas 尺寸有效且图表数据属性为 200；
+3. 将分析 K 线数量改为 64 后自动重算，说明文字和图表数据属性同步变为 64；
+4. 点击右上角“重置分析台”后，结果和图表被清空，策略参数恢复默认 200；
+5. 失败时保存 `test-results/binance-spot-e2e-failure.png`，通过时分别保存 200 根、64 根和重置后的界面截图。
+
+发布打包命令 `npm run package` 必须先通过该真实站点 E2E，避免仅凭单元测试发布。
+
 ### 10.1 Agent 角色
 
 Agent 同时执行两类职责：

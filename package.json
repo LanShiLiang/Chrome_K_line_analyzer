@@ -8,13 +8,14 @@
     "build": "npm run typecheck && npm run build:extension",
     "build:extension": "node scripts/build-extension.mjs",
     "test": "vitest run",
+    "test:e2e:binance": "npm run build:extension && node scripts/e2e-binance.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.app.json --pretty false && tsc --noEmit -p tsconfig.node.json --pretty false",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run format:check && npm run lint && npm test && npm run typecheck",
-    "package": "npm run check && npm run build:extension && node scripts/package-extension.mjs"
+    "package": "npm run check && npm run test:e2e:binance && node scripts/package-extension.mjs"
   },
   "dependencies": {
     "lightweight-charts": "latest",
@@ -34,6 +35,7 @@
     "eslint-plugin-react-hooks": "latest",
     "eslint-plugin-react-refresh": "latest",
     "globals": "latest",
+    "playwright-core": "1.62.1",
     "prettier": "3.6.2",
     "typescript": "latest",
     "typescript-eslint": "latest",

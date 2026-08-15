@@ -5,6 +5,7 @@ export type MessageType =
   | 'SELECTION_DONE'
   | 'MARKET_DATA_CANDIDATES'
   | 'RUN_ANALYSIS'
+  | 'RESET_ANALYSIS'
   | 'GET_STATE';
 export type ExtensionError = {
   code: string;

@@ -11,7 +11,7 @@ import type { MarketData, SelectionRange, UserConfig } from '../core/model/types
 import { isRawMarketPayload } from '../shared/guards';
 import { createMessage, type ExtensionMessage } from '../shared/messages';
 import { selectBestPassiveMarketData } from './market';
-import { createSession, updateSessionPage, type Session } from './session';
+import { createSession, resolveSessionTabId, updateSessionPage, type Session } from './session';
 
 // Service Worker 按标签页维护临时会话，并统一执行标准化与策略分析。
 const sessions = new Map<number, Session>();
@@ -22,7 +22,7 @@ const session = (tabId: number) => {
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
   // 页面消息优先使用 sender.tab；扩展页面必须显式携带 tabId。
-  const tabId = sender.tab?.id ?? message.tabId;
+  const tabId = resolveSessionTabId(message.source, sender.tab?.id, message.tabId);
   if (tabId === undefined) {
     sendResponse({
       ok: false,
@@ -39,6 +39,11 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
     current.candidates = Array.isArray(message.payload)
       ? message.payload.filter(isRawMarketPayload)
       : [];
+  if (message.type === 'RESET_ANALYSIS') {
+    current.selection = undefined;
+    sendResponse({ ok: true });
+    return;
+  }
   if (message.type === 'GET_STATE') {
     const requestedPage = message.payload as Session['page'];
     if (requestedPage?.url) updateSessionPage(current, requestedPage);
