@@ -17,6 +17,7 @@ describe('background tab session', () => {
     expect(current.candidates).toEqual([candidate]);
     expect(current.selection).toBe(selection);
     expect(current.page?.title).toBe('New');
+    expect(current.revision).toBe(0);
   });
 
   it('clears candidates and selection after the tab navigates', () => {
@@ -29,5 +30,6 @@ describe('background tab session', () => {
     updateSessionPage(current, { url: 'https://example.test/b', title: 'B' });
     expect(current.candidates).toEqual([]);
     expect(current.selection).toBeUndefined();
+    expect(current.revision).toBe(1);
   });
 });

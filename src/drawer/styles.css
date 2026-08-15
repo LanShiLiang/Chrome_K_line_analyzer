@@ -89,6 +89,11 @@ h2 {
   color: #8fa0aa;
   font-size: 12px;
 }
+.market-chart {
+  width: 100%;
+  min-width: 0;
+  min-height: 260px;
+}
 /* 通用操作控件 */
 button {
   border: 1px solid #3b4b55;
@@ -251,11 +256,33 @@ summary {
   padding-bottom: 2px;
 }
 .config-body.is-disabled {
-  opacity: 0.58;
+  color: #c7d0d5;
 }
 .config-body.is-disabled select,
 .config-body.is-disabled input {
   cursor: not-allowed;
+}
+.chart-context-settings {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.chart-context-settings > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  background: #101820;
+  border: 1px solid #2b3942;
+  font-size: 13px;
+}
+.chart-context-settings span {
+  color: #8fa0aa;
+}
+.chart-context-settings strong {
+  color: #edf2f4;
+  text-align: right;
 }
 details label {
   display: grid;

@@ -40,6 +40,21 @@ export function resolveUserConfigForSite(site: MarketSite, config: UserConfig): 
   return site === 'tradingview' ? { ...DEFAULT_CONFIG } : { ...config };
 }
 
+// TradingView 的图表周期由页面当前图表决定，分析窗口也必须服从本次实际捕获的数据。
+// 这里仅生成单次运行配置，不回写用户设置，避免把页面上下文误当作持久策略参数。
+export function resolveAnalysisConfigForMarket(
+  site: MarketSite,
+  config: UserConfig,
+  availableCandles: number,
+): UserConfig {
+  if (site !== 'tradingview') return { ...config };
+  const available = Number.isFinite(availableCandles) ? Math.trunc(availableCandles) : 0;
+  return {
+    ...DEFAULT_CONFIG,
+    analysisCandleCount: Math.min(MAX_ANALYSIS_CANDLES, Math.max(MIN_ANALYSIS_CANDLES, available)),
+  };
+}
+
 export function getAnalysisConfigError(config: UserConfig): string | undefined {
   if (!isAnalysisPeriod(config.analysisPeriod)) return '行情周期无效，请重新选择';
   if (!Number.isInteger(config.analysisCandleCount)) return '分析 K 线数量必须是整数';

@@ -10,19 +10,28 @@ const zip = resolve('release', `k-line-analyzer-${pkg.version}.zip`);
 await rm(zip, { force: true });
 
 if (process.platform === 'win32') {
-  execFileSync(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      'Compress-Archive -Path (Join-Path $env:KLA_DIST_DIR "*") -DestinationPath $env:KLA_ZIP_PATH -CompressionLevel Optimal',
-    ],
-    {
-      env: { ...process.env, KLA_DIST_DIR: resolve('dist'), KLA_ZIP_PATH: zip },
+  try {
+    execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'Compress-Archive -Path (Join-Path $env:KLA_DIST_DIR "*") -DestinationPath $env:KLA_ZIP_PATH -CompressionLevel Optimal',
+      ],
+      {
+        env: { ...process.env, KLA_DIST_DIR: resolve('dist'), KLA_ZIP_PATH: zip },
+        stdio: 'pipe',
+      },
+    );
+  } catch {
+    // 某些精简 Windows 环境无法加载 Microsoft.PowerShell.Archive，使用系统 bsdtar 生成同一 ZIP。
+    console.warn('PowerShell ZIP module is unavailable; falling back to Windows tar.exe.');
+    execFileSync('tar.exe', ['-a', '-c', '-f', zip, '.'], {
+      cwd: resolve('dist'),
       stdio: 'inherit',
-    },
-  );
+    });
+  }
 } else {
   execFileSync('zip', ['-q', '-r', zip, '.'], { cwd: resolve('dist'), stdio: 'inherit' });
 }

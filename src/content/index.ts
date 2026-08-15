@@ -66,7 +66,14 @@ const onRuntimeMessage = (
     });
     sendResponse({ ok: true });
   }
-  if (message.type === 'GET_STATE') sendResponse({ ok: true, candidates });
+  if (message.type === 'GET_STATE')
+    sendResponse({
+      ok: true,
+      page: { url: location.href, title: document.title },
+      candidates: candidates.filter(
+        (candidate) => !candidate.pageUrl || candidate.pageUrl === location.href,
+      ),
+    });
 };
 chrome.runtime.onMessage.addListener(onRuntimeMessage);
 
