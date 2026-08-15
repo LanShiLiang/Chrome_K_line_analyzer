@@ -74,6 +74,14 @@ describe('TradingView WebSocket adapter', () => {
     const invalid = framed({ m: 'du', p: ['cs_1', { s1: { s: [{ v: [0, 10, 9, 8, 10, 1] }] } }] });
     expect(parseTradingViewFrame(invalid)).toEqual([]);
   });
+
+  it('does not overflow the call stack on deeply nested protocol data', () => {
+    const depth = 12000;
+    const nested = `${'{"a":'.repeat(depth)}null${'}'.repeat(depth)}`;
+    const json = `{"m":"timescale_update","p":["cs_1",${nested}]}`;
+    const frame = `~m~${json.length}~m~${json}`;
+    expect(() => parseTradingViewFrame(frame)).not.toThrow();
+  });
 });
 
 describe('Binance WebSocket adapter', () => {

@@ -3,9 +3,11 @@ import { isRawMarketPayload } from '../shared/guards';
 import { createMessage, type ExtensionMessage } from '../shared/messages';
 
 const CHANNEL = 'KLA_MARKET_RESPONSE';
+const CANDIDATE_BROADCAST_INTERVAL_MS = 100;
 const candidates: RawMarketPayload[] = [];
 let bridgeActive = true;
 let cancelActiveSelection: (() => void) | undefined;
+let candidateBroadcastTimer: number | undefined;
 
 const extensionContextInvalidated = (error: unknown) =>
   !chrome.runtime?.id || String(error).includes('Extension context invalidated');
@@ -13,6 +15,7 @@ const disableBridge = () => {
   if (!bridgeActive) return;
   bridgeActive = false;
   window.removeEventListener('message', onMarketMessage);
+  if (candidateBroadcastTimer !== undefined) window.clearTimeout(candidateBroadcastTimer);
   cancelActiveSelection?.();
 };
 const sendToBackground = (message: ExtensionMessage) => {
@@ -25,6 +28,13 @@ const sendToBackground = (message: ExtensionMessage) => {
   } catch (error) {
     if (extensionContextInvalidated(error)) disableBridge();
   }
+};
+const scheduleCandidateBroadcast = () => {
+  if (candidateBroadcastTimer !== undefined) return;
+  candidateBroadcastTimer = window.setTimeout(() => {
+    candidateBroadcastTimer = undefined;
+    sendToBackground(createMessage('MARKET_DATA_CANDIDATES', 'content', candidates));
+  }, CANDIDATE_BROADCAST_INTERVAL_MS);
 };
 
 // 将 MAIN World 捕获的行情桥接到扩展消息总线，并按频道保留最新候选。
@@ -41,7 +51,7 @@ function onMarketMessage(event: MessageEvent) {
   if (existing >= 0) candidates.splice(existing, 1);
   candidates.unshift(payload);
   candidates.splice(20);
-  sendToBackground(createMessage('MARKET_DATA_CANDIDATES', 'content', candidates));
+  scheduleCandidateBroadcast();
 }
 window.addEventListener('message', onMarketMessage);
 

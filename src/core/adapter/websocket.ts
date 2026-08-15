@@ -61,29 +61,56 @@ export function decodeTradingViewMessages(frame: string): unknown[] {
   return messages;
 }
 
+const MAX_TRADINGVIEW_NODES = 20000;
+const MAX_CANDLES_PER_UPDATE = 2000;
+const MAX_CHANNEL_PATH_LENGTH = 256;
+
 function tradingViewSeries(value: unknown, path: string, updates: WebSocketMarketUpdate[]) {
-  // timescale_update 的序列层级会变化，因此递归查找包含 s 数组的节点。
-  if (!value || typeof value !== 'object') return;
-  const record = value as Record<string, unknown>;
-  if (Array.isArray(record.s)) {
-    const candles = record.s
-      .map((item) =>
-        item && typeof item === 'object' && Array.isArray((item as Record<string, unknown>).v)
-          ? candle((item as Record<string, unknown>).v as unknown[])
-          : undefined,
-      )
-      .filter((item): item is Candle => Boolean(item));
-    if (candles.length)
-      updates.push({
-        adapterId: 'tradingview-ws',
-        channel: path,
-        siteId: 'tradingview',
-        candles,
-        confidence: 95,
+  // 协议层级不是稳定 API；使用有预算的迭代遍历，避免异常深帧造成递归爆栈或长期占用主线程。
+  const pending: Array<{ value: unknown; path: string }> = [{ value, path }];
+  const visited = new WeakSet<object>();
+  let visitedNodes = 0;
+  while (pending.length && visitedNodes < MAX_TRADINGVIEW_NODES) {
+    const current = pending.pop()!;
+    if (!current.value || typeof current.value !== 'object') continue;
+    if (visited.has(current.value)) continue;
+    visited.add(current.value);
+    visitedNodes += 1;
+    const record = current.value as Record<string, unknown>;
+    if (Array.isArray(record.s)) {
+      const candles = record.s
+        .slice(-MAX_CANDLES_PER_UPDATE)
+        .map((item) =>
+          item && typeof item === 'object' && Array.isArray((item as Record<string, unknown>).v)
+            ? candle((item as Record<string, unknown>).v as unknown[])
+            : undefined,
+        )
+        .filter((item): item is Candle => Boolean(item));
+      if (candles.length)
+        updates.push({
+          adapterId: 'tradingview-ws',
+          channel: current.path,
+          siteId: 'tradingview',
+          candles,
+          confidence: 95,
+        });
+    }
+    const entries = Object.entries(record);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (visitedNodes + pending.length >= MAX_TRADINGVIEW_NODES) break;
+      const [key, child] = entries[index];
+      if (key === 's' && Array.isArray(child)) continue;
+      if (!child || typeof child !== 'object') continue;
+      const nextPath = current.path ? `${current.path}.${key}` : key;
+      pending.push({
+        value: child,
+        path:
+          nextPath.length <= MAX_CHANNEL_PATH_LENGTH
+            ? nextPath
+            : nextPath.slice(0, MAX_CHANNEL_PATH_LENGTH),
       });
+    }
   }
-  for (const [key, child] of Object.entries(record))
-    tradingViewSeries(child, path ? `${path}.${key}` : key, updates);
 }
 
 export function parseTradingViewFrame(frame: string): WebSocketMarketUpdate[] {
