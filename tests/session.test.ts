@@ -38,4 +38,23 @@ describe('background tab session', () => {
     expect(current.selection).toBeUndefined();
     expect(current.revision).toBe(1);
   });
+
+  it('preserves the session across benign Binance SPA URL rewrites', () => {
+    const current = {
+      ...createSession(),
+      page: {
+        url: 'https://www.binance.com/en/trade/ETH_USDT?type=spot',
+        title: 'ETH',
+      },
+      candidates: [candidate],
+      selection,
+    };
+    updateSessionPage(current, {
+      url: 'https://www.binance.com/zh-CN/trade/ETH_USDT?theme=dark&type=spot',
+      title: 'ETH/USDT',
+    });
+    expect(current.candidates).toEqual([candidate]);
+    expect(current.selection).toBe(selection);
+    expect(current.revision).toBe(0);
+  });
 });

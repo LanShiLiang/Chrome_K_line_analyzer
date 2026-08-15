@@ -1,5 +1,6 @@
 import { createMarketData } from '../core/adapter/normalize';
 import type { MarketSite } from '../core/adapter/sites';
+import { isSameMarketPage } from '../core/adapter/sites';
 import type { MarketData, RawMarketPayload } from '../core/model/types';
 import { MIN_ANALYSIS_CANDLES } from '../core/model/types';
 
@@ -24,7 +25,8 @@ export function selectBestPassiveMarketData(
   return candidates
     .filter(
       (candidate) =>
-        candidate.siteId === site && (!candidate.pageUrl || candidate.pageUrl === pageUrl),
+        candidate.siteId === site &&
+        (!candidate.pageUrl || !pageUrl || isSameMarketPage(candidate.pageUrl, pageUrl)),
     )
     .map((candidate) => ({
       candidate,

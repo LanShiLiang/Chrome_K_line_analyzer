@@ -1,6 +1,6 @@
 import { AnalysisInputError, runMarketAnalysis } from '../core/analysis/engine';
 import { ActiveMarketDataError, fetchActiveMarketData } from '../core/adapter/active';
-import { detectMarketSite } from '../core/adapter/sites';
+import { detectMarketSite, isSameMarketPage } from '../core/adapter/sites';
 import {
   getAnalysisConfigError,
   mergeUserConfig,
@@ -89,7 +89,7 @@ async function getAuthoritativePage(tabId: number, current: Session, requestedUr
   const pageUrl = tabUrl ?? requestedUrl ?? current.page?.url;
   if (!pageUrl)
     throw new AnalysisInputError('E_PAGE_CONTEXT_MISSING', '无法确认当前行情页面，请刷新后重试');
-  if (tabUrl && requestedUrl && tabUrl !== requestedUrl)
+  if (tabUrl && requestedUrl && !isSameMarketPage(tabUrl, requestedUrl))
     throw new AnalysisInputError(
       'E_PAGE_CONTEXT_CHANGED',
       '当前标签页已经切换，请等待页面状态同步后重新分析',
@@ -104,14 +104,18 @@ async function assertPageStillActive(
   pageUrl: string,
   revision: number,
 ) {
-  if (current.revision !== revision || current.page?.url !== pageUrl)
+  if (
+    current.revision !== revision ||
+    !current.page?.url ||
+    !isSameMarketPage(current.page.url, pageUrl)
+  )
     throw new AnalysisInputError(
       'E_PAGE_CONTEXT_CHANGED',
       '分析期间行情页面已切换，本次旧页面结果已丢弃',
     );
   try {
     const tab = await chrome.tabs.get(tabId);
-    if (tab.url && tab.url !== pageUrl)
+    if (tab.url && !isSameMarketPage(tab.url, pageUrl))
       throw new AnalysisInputError(
         'E_PAGE_CONTEXT_CHANGED',
         '分析期间行情页面已切换，本次旧页面结果已丢弃',

@@ -1,5 +1,6 @@
 import type { RawMarketPayload, SelectionRange } from '../core/model/types';
 import type { ExtensionMessage } from '../shared/messages';
+import { isSameMarketPage } from '../core/adapter/sites';
 
 export type PageContext = { url: string; title: string };
 
@@ -26,7 +27,7 @@ export function resolveSessionTabId(
 // 同一 Tab 导航到新页面后，旧候选和旧框选都不能继续参与分析。
 export function updateSessionPage(current: Session, page?: PageContext) {
   if (!page) return;
-  if (current.page && current.page.url !== page.url) {
+  if (current.page && !isSameMarketPage(current.page.url, page.url)) {
     current.candidates = [];
     current.selection = undefined;
     current.revision += 1;

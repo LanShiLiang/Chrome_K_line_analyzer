@@ -7,6 +7,7 @@ import {
   type UserConfig,
   type WyckoffAnalysisResult,
 } from '../core/model/types';
+import { isSameMarketPage } from '../core/adapter/sites';
 
 // Drawer 的瞬时 UI 状态集中管理，浏览器会话数据仍由 Service Worker 按 Tab 持有。
 type DrawerState = {
@@ -44,10 +45,12 @@ export const isSameTabContext = (
   state: Pick<DrawerState, 'activeTabId' | 'page'>,
   tabId: number,
   page?: DrawerState['page'],
-) => state.activeTabId === tabId && (!page?.url || state.page?.url === page.url);
+) =>
+  state.activeTabId === tabId &&
+  (!page?.url || Boolean(state.page?.url && isSameMarketPage(state.page.url, page.url)));
 
 export const hasConflictingPage = (left?: DrawerState['page'], right?: DrawerState['page']) =>
-  Boolean(left?.url && right?.url && left.url !== right.url);
+  Boolean(left?.url && right?.url && !isSameMarketPage(left.url, right.url));
 
 export const useDrawerStore = create<DrawerState>((set) => ({
   candidates: [],

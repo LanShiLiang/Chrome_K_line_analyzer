@@ -41,7 +41,7 @@ npm run package
 ```
 
 `test:e2e:binance` 会构建并加载当前 `dist`，使用隔离的 Playwright Chromium 打开
-`https://www.binance.com/en/trade/ETH_USDT?type=spot`，验证开始分析、200/64 根 K 线图表、参数即时重算和分析台重置。`npm run package` 已将该真实站点 E2E 设为发布门禁。
+`https://www.binance.com/en/trade/ETH_USDT?type=spot`，通过 popup 用户手势打开真实 Chrome Side Panel，验证开始分析、分析结论与依据、200/64 根 K 线非空画布、参数即时重算和分析台重置。`npm run package` 已将该真实站点 E2E 设为发布门禁。
 
 ## 目录
 

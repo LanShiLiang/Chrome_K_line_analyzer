@@ -261,11 +261,13 @@ MAIN World → ISOLATED Content Script → Service Worker
 
 当前自动化会加载最新 `dist`，并验证：
 
-1. 即使 `activeTab` 暂时不暴露 URL，Drawer 仍能通过 Tab ID 和 Content Script 页面上下文识别 Binance；
-2. 点击“开始分析”后展示最近 200 根 K 线，Canvas 尺寸有效且图表数据属性为 200；
-3. 将分析 K 线数量改为 64 后自动重算，说明文字和图表数据属性同步变为 64；
-4. 点击右上角“重置分析台”后，结果和图表被清空，策略参数恢复默认 200；
-5. 失败时保存 `test-results/binance-spot-e2e-failure.png`，通过时分别保存 200 根、64 根和重置后的界面截图。
+1. 从真实 popup 用户手势调用 `chrome.sidePanel.open`，并通过 CDP 确认 Drawer 是原生 Side Panel target，不是普通扩展 Tab；
+2. 制造同一 ETH/USDT Spot 页面语言、主题和跟踪参数不同的 URL 快照，验证不会再误报“旧页面数据”，同时不同标的仍严格隔离；
+3. 点击“开始分析”后必须展示策略结论、阶段、置信度和至少一条分析依据；
+4. 展示最近 200 根 K 线，消息请求/响应 Tab ID 必须等于 Binance Tab，后台返回和 DOM 均为 200 根，Canvas 像素必须包含多种实际绘制颜色；
+5. 将分析 K 线数量改为 64 后自动重算，请求参数、响应数据、说明文字和图表数据属性同步变为 64；
+6. 点击右上角“重置分析台”后，结果和图表被清空，策略参数恢复默认 200；
+7. 失败时保存 `test-results/binance-spot-e2e-failure.png`，通过时分别保存 200 根、64 根和重置后的真实 Side Panel 截图。
 
 发布打包命令 `npm run package` 必须先通过该真实站点 E2E，避免仅凭单元测试发布。
 
@@ -429,8 +431,8 @@ artifacts/e2e/<run-id>/
 
 ### 15.1 Side Panel
 
-- Drawer 业务功能通过扩展 URL 自动化测试。
-- Popup 到原生 Side Panel 的打开依赖有效用户手势，交给 headed Agent 冒烟。
+- Binance 发布门禁通过 popup 用户手势打开原生 Side Panel，并直接连接该 Side Panel target 完成业务断言。
+- E2E 必须拒绝把 `drawer.html` 作为普通浏览器 Tab 打开，防止绕过 Side Panel 的 Tab 关联和消息发送者边界。
 - 原生面板固定、关闭、切换 Tab 和左右位置不做跨平台像素门禁。
 - Agent 必须保留原生 Side Panel 与主行情图同屏截图。
 

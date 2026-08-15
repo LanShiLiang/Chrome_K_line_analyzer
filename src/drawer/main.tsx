@@ -17,7 +17,7 @@ import {
 } from 'lightweight-charts';
 import { createMessage } from '../shared/messages';
 import type { ExtensionMessage } from '../shared/messages';
-import { detectMarketSite, type MarketSite } from '../core/adapter/sites';
+import { detectMarketSite, isSameMarketPage, type MarketSite } from '../core/adapter/sites';
 import {
   getAnalysisConfigError,
   loadStoredUserConfig,
@@ -59,7 +59,9 @@ const errorMessage = (error: unknown, fallback: string) =>
 const candidatesForSite = (candidates: RawMarketPayload[], url?: string) => {
   const site = detectMarketSite(url);
   return candidates.filter(
-    (candidate) => candidate.siteId === site && (!candidate.pageUrl || candidate.pageUrl === url),
+    (candidate) =>
+      candidate.siteId === site &&
+      (!candidate.pageUrl || !url || isSameMarketPage(candidate.pageUrl, url)),
   );
 };
 
@@ -112,7 +114,8 @@ function App() {
       )
         return false;
 
-      const page = context.page ?? response.data?.page;
+      // Content Script 的 location.href 是 SPA 最终页面，优先于 tabs API 的瞬时 URL 快照。
+      const page = response.data?.page ?? context.page;
       const nextSite = detectMarketSite(page?.url);
       const candidates = candidatesForSite(response.data?.candidates ?? [], page?.url);
       current = useDrawerStore.getState();
@@ -284,7 +287,7 @@ function App() {
       if (response?.ok) {
         if (
           response.data?.context?.tabId !== tabId ||
-          response.data?.context?.pageUrl !== page?.url
+          !isSameMarketPage(response.data?.context?.pageUrl, page?.url)
         )
           throw new Error('分析结果与当前标签页不一致，已阻止展示旧页面数据');
         current.set({
