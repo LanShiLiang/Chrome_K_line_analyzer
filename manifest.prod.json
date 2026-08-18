@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "K Line Analyzer",
+  "version": "0.1.1",
+  "description": "本地 K 线量价分析与维科夫策略辅助工具",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "K Line Analyzer",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": ["storage", "activeTab", "sidePanel"],
+  "host_permissions": ["https://data-api.binance.vision/*", "https://d.10jqka.com.cn/*"],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://stockpage.10jqka.com.cn/*",
+        "https://*.tradingview.com/*",
+        "https://www.binance.com/*"
+      ],
+      "js": ["inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://stockpage.10jqka.com.cn/*",
+        "https://*.tradingview.com/*",
+        "https://www.binance.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "side_panel": { "default_path": "drawer.html" },
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'" }
+}

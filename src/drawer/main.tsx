@@ -379,6 +379,7 @@ function App() {
                   : '当前页面暂不支持主动获取行情'}
         </span>
       </section>
+      <p className="privacy-note">行情与分析结果不上传至开发者服务器。</p>
       <div className="actions">
         <button disabled={s.syncing} onClick={() => void select()}>
           <MousePointer2 />

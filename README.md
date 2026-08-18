@@ -28,7 +28,9 @@ npm install
 npm run dev
 ```
 
-打开 `chrome://extensions`，启用开发者模式，选择“加载已解压的扩展程序”，加载项目的 `dist` 目录。打开目标行情页并刷新，使 Inject Script 在网站创建 WebSocket 连接前完成 Hook。
+`npm run dev` 使用 `manifest.dev.json`，保留 `localhost` 和 `127.0.0.1` 测试页访问。打开 `chrome://extensions`，启用开发者模式，选择“加载已解压的扩展程序”，加载项目的 `dist` 目录。打开目标行情页并刷新，使 Inject Script 在网站创建 WebSocket 连接前完成 Hook。
+
+`npm run build`、真实站点 E2E 和发布打包统一使用 `manifest.prod.json`。Production Manifest 只包含当前支持页面及 Binance、同花顺公开行情接口所需域名；构建审计会拒绝任何包含 `localhost`、`127.0.0.1` 或与生产清单不一致的产物。
 
 ## 验证
 
@@ -42,6 +44,15 @@ npm run package
 
 `test:e2e:binance` 会构建并加载当前 `dist`，使用隔离的 Playwright Chromium 打开
 `https://www.binance.com/en/trade/ETH_USDT?type=spot`，通过 popup 用户手势打开真实 Chrome Side Panel，验证开始分析、分析结论与依据、200/64 根 K 线非空画布、参数即时重算和分析台重置。`npm run package` 已将该真实站点 E2E 设为发布门禁。
+
+## Chrome Web Store 发布材料
+
+- `PRIVACY.md`：中英双语隐私政策，说明本地数据处理、支持站点、保留期限、第三方行情请求和 Limited Use。
+- `docs/WEB_STORE_LISTING.md`：可直接用于 Developer Dashboard 的单一用途、商店说明、权限理由、数据披露和提交清单。
+- `assets/icons/`：Manifest 使用的 16、32、48、128 px PNG 图标及可编辑 SVG 源文件。
+- `store-assets/`：1280×800 商店截图和 440×280 小型宣传图。
+
+运行 `npm run assets:store` 会先生成图标，再执行真实 Binance E2E，并基于真实 Side Panel 产物重新生成商店素材。
 
 ## 目录
 
@@ -71,6 +82,7 @@ docs/spec         原始企业评审版技术方案（实现基线）
 - 不读取或存储 Cookie、Token、账号和交易账户信息。
 - 捕获失败不会影响宿主页面原始请求。
 - 所有计算和配置均保留在本地浏览器中。
+- 当前受支持页面的 URL、标题和公开行情内容只用于识别市场上下文并生成本地分析。
 - 主动行情请求仅访问 Manifest 明确声明的 Binance 与同花顺数据域名。
 - 页面桥接数据仍属于不可信输入，进入分析前会经过结构检查、OHLCV 标准化和数量校验。
 

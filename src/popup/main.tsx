@@ -35,6 +35,7 @@ function App() {
         {closing ? '正在打开…' : '打开侧边分析面板'}
       </button>
       {error && <p className="error popup-error">{error}</p>}
+      <p className="privacy-note">仅处理受支持行情页中的市场数据，并在本地生成分析。</p>
       <p className="warning">分析结果仅供技术研究，不构成投资建议。</p>
     </main>
   );

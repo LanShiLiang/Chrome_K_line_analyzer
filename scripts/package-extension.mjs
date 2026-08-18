@@ -2,9 +2,11 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { verifyExtensionBuild } from './verify-extension-build.mjs';
 
 // 打包前删除同名旧包，避免 Unix zip 的增量更新保留已经从 dist 删除的条目。
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+await verifyExtensionBuild(resolve('dist'), { profile: 'prod' });
 await mkdir('release', { recursive: true });
 const zip = resolve('release', `k-line-analyzer-${pkg.version}.zip`);
 await rm(zip, { force: true });

@@ -8,5 +8,10 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "vite.*.config.ts", "scripts/**/*.mjs"]
+  "include": [
+    "vite.config.ts",
+    "vite.*.config.ts",
+    "scripts/**/*.mjs",
+    "tests/release-assets.test.ts"
+  ]
 }

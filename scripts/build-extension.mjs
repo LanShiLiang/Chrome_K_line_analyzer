@@ -4,6 +4,10 @@ import { build } from 'vite';
 import { verifyExtensionBuild } from './verify-extension-build.mjs';
 
 const root = resolve(import.meta.dirname, '..');
+const profile = process.argv[2] ?? 'prod';
+if (!['dev', 'prod'].includes(profile))
+  throw new Error(`Unknown manifest profile: ${profile}. Expected dev or prod.`);
+const manifestFile = `manifest.${profile}.json`;
 const dist = resolve(root, 'dist');
 const cacheRoot = resolve(root, 'node_modules', '.cache', 'k-line-analyzer');
 const runRoot = resolve(cacheRoot, `build-${process.pid}-${Date.now()}`);
@@ -68,10 +72,14 @@ try {
   await cp(uiDir, assembledDir, { recursive: true });
   await copyIsolatedScript(contentDir, 'content.js');
   await copyIsolatedScript(injectDir, 'inject.js');
-  await copyFile(resolve(root, 'manifest.json'), resolve(assembledDir, 'manifest.json'));
-  await verifyExtensionBuild(assembledDir);
+  await cp(resolve(root, 'assets', 'icons'), resolve(assembledDir, 'icons'), {
+    recursive: true,
+  });
+  await rm(resolve(assembledDir, 'icons', 'icon.svg'));
+  await copyFile(resolve(root, manifestFile), resolve(assembledDir, 'manifest.json'));
+  await verifyExtensionBuild(assembledDir, { profile });
   await publishDist();
-  console.log(`Published verified extension build to ${dist}`);
+  console.log(`Published verified ${profile} extension build to ${dist}`);
 } finally {
   await rm(runRoot, { recursive: true, force: true });
 }

@@ -16,6 +16,8 @@
 
 ## 3. Manifest V3 方案
 
+仓库维护两份源清单：`manifest.dev.json` 仅用于本地解压加载，额外允许 `localhost` 与 `127.0.0.1`；`manifest.prod.json` 是生产基线，只允许当前三个支持站点和两个主动行情接口。构建后统一输出为 `dist/manifest.json`，发布脚本只接受与生产清单逐项一致且不含本地域名的产物。
+
 ```json
 {
   "manifest_version": 3,
@@ -61,6 +63,8 @@
 | `permissions.sidePanel`     | 提供分析侧边面板     | 必需                           |
 | `host_permissions`          | 主动请求匿名行情接口 | 仅允许 Binance、同花顺行情域名 |
 | `content_scripts.matches`   | 注入站点页面         | 仅允许当前支持的三个站点       |
+
+16、32、48、128 px PNG 图标由两份清单共同声明，其中 128 px 图标必须进入发布 ZIP。商店截图和宣传图不进入扩展 ZIP，统一保存在 `store-assets/` 供 Developer Dashboard 上传。
 
 ## 4. 权限设计
 

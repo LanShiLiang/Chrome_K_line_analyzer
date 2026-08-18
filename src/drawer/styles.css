@@ -31,6 +31,12 @@ main {
 .popup-error {
   margin: 0;
 }
+.privacy-note {
+  margin: 0;
+  color: #8fa0aa;
+  font-size: 12px;
+  line-height: 1.5;
+}
 @keyframes popup-enter {
   from {
     opacity: 0;

@@ -97,7 +97,10 @@ const createTargetClient = async (cdp, targetId) => {
       await delay(100);
     }
     const body = await evaluate('document.body.innerText');
-    throw new Error(`${description}超时\nSide Panel 当前内容：\n${body}`);
+    const diagnostics = await evaluate('globalThis.__klaE2EWaitDiagnostics');
+    throw new Error(
+      `${description}超时\nSide Panel 当前内容：\n${body}\n诊断：${JSON.stringify(diagnostics)}`,
+    );
   };
 
   const screenshot = async (path) => {
@@ -117,32 +120,48 @@ const renderedAnalysisExpression = (expectedCandles) => `(() => {
   const error = document.querySelector('.error')?.textContent ?? '';
   if (error.includes('当前标签页') || error.includes('旧页面数据')) return false;
   const chart = document.querySelector('.market-chart');
-  const evidence = document.querySelectorAll('article');
+  const evidenceSection = [...document.querySelectorAll('section')].find(
+    (section) => section.querySelector('h2')?.textContent?.trim() === '分析依据'
+  );
+  const rationale = evidenceSection?.querySelectorAll('article, .warning') ?? [];
   const signalValues = document.querySelectorAll('.signal strong');
   const canvases = [...(chart?.querySelectorAll('canvas') ?? [])];
-  const paintedCanvas = canvases.some((canvas) => {
+  const canvasColorCounts = canvases.map((canvas) => {
     const context = canvas.getContext('2d');
-    if (!context || canvas.width < 1 || canvas.height < 1) return false;
+    if (!context || canvas.width < 1 || canvas.height < 1) return 0;
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
     const colors = new Set();
-    const stride = Math.max(4, Math.floor(pixels.length / 4000 / 4) * 4);
-    for (let index = 0; index < pixels.length; index += stride) {
-      colors.add(
-        pixels[index] + ',' + pixels[index + 1] + ',' + pixels[index + 2] + ',' + pixels[index + 3]
-      );
-      if (colors.size >= 6) return true;
+    const stepX = Math.max(1, Math.floor(canvas.width / 48));
+    const stepY = Math.max(1, Math.floor(canvas.height / 32));
+    for (let y = 0; y < canvas.height; y += stepY) {
+      for (let x = 0; x < canvas.width; x += stepX) {
+        const index = (y * canvas.width + x) * 4;
+        colors.add(
+          pixels[index] + ',' + pixels[index + 1] + ',' + pixels[index + 2] + ',' + pixels[index + 3]
+        );
+        if (colors.size >= 3) return colors.size;
+      }
     }
-    return false;
+    return colors.size;
   });
-  return body.includes('策略结论') &&
-    body.includes('阶段') &&
-    body.includes('置信度') &&
-    body.includes('分析依据') &&
-    chart?.getAttribute('data-candle-count') === '${expectedCandles}' &&
-    signalValues.length === 3 &&
-    [...signalValues].every((value) => value.textContent?.trim()) &&
-    evidence.length > 0 &&
-    paintedCanvas;
+  const diagnostics = {
+    expectedCandles: '${expectedCandles}',
+    renderedCandles: chart?.getAttribute('data-candle-count'),
+    signalValues: [...signalValues].map((value) => value.textContent?.trim()),
+    rationaleCount: rationale.length,
+    canvasColorCounts,
+    hasRequiredLabels: ['策略结论', '阶段', '置信度', '分析依据'].every((label) => body.includes(label)),
+    error
+  };
+  globalThis.__klaE2EWaitDiagnostics = diagnostics;
+  return diagnostics.hasRequiredLabels &&
+    diagnostics.renderedCandles === diagnostics.expectedCandles &&
+    diagnostics.signalValues.length === 3 &&
+    diagnostics.signalValues.every(Boolean) &&
+    diagnostics.rationaleCount > 0 &&
+    diagnostics.canvasColorCounts.some((count) => count >= 3) &&
+    !error.includes('当前标签页') &&
+    !error.includes('旧页面数据');
 })()`;
 
 let context;
@@ -254,6 +273,10 @@ try {
   if (firstTrace?.response?.data?.marketData?.candles?.length !== 200)
     throw new Error('后台没有返回 200 根 K 线');
   await sidePanel.screenshot(resolve(resultsPath, 'binance-spot-200-candles.png'));
+  await marketPage.screenshot({
+    path: resolve(resultsPath, 'binance-spot-market-page.png'),
+    type: 'png',
+  });
 
   await sidePanel.evaluate(`(() => {
     const input = document.querySelector('input[type="number"]');

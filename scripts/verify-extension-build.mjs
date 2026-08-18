@@ -75,7 +75,12 @@ const extractReferences = (source, file) => {
   return references;
 };
 
-export const verifyExtensionBuild = async (directory = resolve('dist')) => {
+const localDevelopmentPattern = /(?:localhost|127\.0\.0\.1)/i;
+
+export const verifyExtensionBuild = async (
+  directory = resolve('dist'),
+  { profile = 'prod' } = {},
+) => {
   const dist = resolve(directory);
   const files = await listFiles(dist);
   const fileSet = new Set(files);
@@ -87,6 +92,15 @@ export const verifyExtensionBuild = async (directory = resolve('dist')) => {
   }
 
   const manifest = JSON.parse(await readFile(resolve(dist, 'manifest.json'), 'utf8'));
+  const expectedManifest = JSON.parse(
+    await readFile(resolve(import.meta.dirname, '..', `manifest.${profile}.json`), 'utf8'),
+  );
+  if (JSON.stringify(manifest) !== JSON.stringify(expectedManifest))
+    throw new Error(`Build manifest does not match manifest.${profile}.json`);
+  if (profile === 'prod' && localDevelopmentPattern.test(JSON.stringify(manifest)))
+    throw new Error('Production manifest contains localhost or 127.0.0.1 access');
+  if (profile === 'dev' && !localDevelopmentPattern.test(JSON.stringify(manifest)))
+    throw new Error('Development manifest must retain local test-page access');
   const packageJson = JSON.parse(
     await readFile(resolve(import.meta.dirname, '..', 'package.json'), 'utf8'),
   );
@@ -134,8 +148,13 @@ export const verifyExtensionBuild = async (directory = resolve('dist')) => {
   if (unreachable.length) {
     throw new Error(`Unreferenced files in extension build: ${unreachable.join(', ')}`);
   }
-  console.log(`Verified ${files.length} reachable extension files with no forbidden artifacts`);
+  console.log(
+    `Verified ${files.length} reachable ${profile} extension files with no forbidden artifacts`,
+  );
 };
 
 const isDirectRun = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isDirectRun) await verifyExtensionBuild(process.argv[2]);
+if (isDirectRun)
+  await verifyExtensionBuild(process.argv[2] ?? resolve('dist'), {
+    profile: process.argv[3] ?? 'prod',
+  });

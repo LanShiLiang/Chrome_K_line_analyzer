@@ -1,9 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "K Line Analyzer",
+  "name": "K Line Analyzer (Dev)",
   "version": "0.1.1",
-  "description": "本地 K 线量价分析与维科夫策略辅助工具",
-  "action": { "default_popup": "popup.html", "default_title": "K Line Analyzer" },
+  "description": "本地 K 线量价分析与维科夫策略辅助工具（开发构建）",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "K Line Analyzer (Dev)",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
   "background": { "service_worker": "background.js", "type": "module" },
   "permissions": ["storage", "activeTab", "sidePanel"],
   "host_permissions": [
