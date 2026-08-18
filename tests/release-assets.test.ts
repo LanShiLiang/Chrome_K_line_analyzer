@@ -9,6 +9,7 @@ type Manifest = {
   host_permissions?: string[];
   content_scripts?: Array<{ matches?: string[] }>;
 };
+type PackageJson = { scripts?: Record<string, string> };
 
 const root = resolve(import.meta.dirname, '..');
 const readJson = <T>(file: string) => JSON.parse(readFileSync(resolve(root, file), 'utf8')) as T;
@@ -55,6 +56,13 @@ describe('release manifests', () => {
 });
 
 describe('Chrome Web Store assets', () => {
+  it('gates release packaging on both recommended real sites', () => {
+    const scripts = readJson<PackageJson>('package.json').scripts ?? {};
+    expect(scripts['test:e2e:release']).toContain('e2e-binance.mjs binance');
+    expect(scripts['test:e2e:release']).toContain('e2e-binance.mjs tonghuashun');
+    expect(scripts.package).toContain('test:e2e:release');
+  });
+
   it.each([16, 32, 48, 128])('provides a valid %d px PNG icon', (size) => {
     expect(pngDimensions(`assets/icons/icon${size}.png`)).toEqual({ width: size, height: size });
   });
@@ -63,6 +71,7 @@ describe('Chrome Web Store assets', () => {
     ['store-assets/promo-small-440x280.png', 440, 280],
     ['store-assets/screenshot-1-analysis-1280x800.png', 1280, 800],
     ['store-assets/screenshot-2-settings-1280x800.png', 1280, 800],
+    ['store-assets/screenshot-3-tonghuashun-1280x800.png', 1280, 800],
   ])('provides correctly sized store artwork: %s', (file, width, height) => {
     expect(pngDimensions(file)).toEqual({ width, height });
   });
@@ -74,5 +83,28 @@ describe('Chrome Web Store assets', () => {
       expect(privacy).toContain(term);
     for (const term of ['Website content', 'Web browsing activity', '单一用途', '权限说明'])
       expect(listing).toContain(term);
+    for (const url of [
+      'https://www.binance.com/en/trade/BTC_USDT?type=spot',
+      'https://stockpage.10jqka.com.cn/600519/',
+    ]) {
+      expect(readFileSync(resolve(root, 'README.md'), 'utf8')).toContain(url);
+      expect(listing).toContain(url);
+    }
+  });
+
+  it('uses blue for the product theme while preserving market chart colors', () => {
+    const styles = readFileSync(resolve(root, 'src', 'drawer', 'styles.css'), 'utf8');
+    const content = readFileSync(resolve(root, 'src', 'content', 'index.ts'), 'utf8');
+    const drawer = readFileSync(resolve(root, 'src', 'drawer', 'main.tsx'), 'utf8');
+
+    expect(styles).toContain('--accent: #4f8cff');
+    expect(styles).toContain('linear-gradient(90deg, #315fd4 0%, #4f8cff 100%)');
+    expect(styles).toContain('body.popup-page');
+    expect(styles).not.toMatch(/(?:^|\n)body\s*\{[^}]*min-width:\s*420px/s);
+    expect(styles).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))');
+    expect(styles).not.toMatch(/#17b890|#00a878|rgba\(0,\s*168,\s*120/i);
+    expect(content).toContain("border: '2px solid #4f8cff'");
+    expect(drawer).toContain('upColor: colors.rising');
+    expect(drawer).toContain('downColor: colors.falling');
   });
 });

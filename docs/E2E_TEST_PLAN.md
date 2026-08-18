@@ -253,23 +253,27 @@ MAIN World → ISOLATED Content Script → Service Worker
 
 ## 10. Agent 真实站点冒烟
 
-### 10.0 已实现的 Binance Spot 自动化门禁
+### 10.0 已实现的 Binance 与同花顺自动化门禁
 
-执行命令：`npm run test:e2e:binance`。
+执行命令：`npm run test:e2e:binance`、`npm run test:e2e:tonghuashun`；发布时统一运行 `npm run test:e2e:release`。
 
-固定页面：`https://www.binance.com/en/trade/ETH_USDT?type=spot`。
+固定页面：
+
+- Binance：`https://www.binance.com/en/trade/BTC_USDT?type=spot`；
+- 同花顺：`https://stockpage.10jqka.com.cn/600519/`。
 
 当前自动化会加载最新 `dist`，并验证：
 
 1. 从真实 popup 用户手势调用 `chrome.sidePanel.open`，并通过 CDP 确认 Drawer 是原生 Side Panel target，不是普通扩展 Tab；
-2. 制造同一 ETH/USDT Spot 页面语言、主题和跟踪参数不同的 URL 快照，验证不会再误报“旧页面数据”，同时不同标的仍严格隔离；
+2. 制造同一行情页面的无害查询参数差异，验证不会误报“旧页面数据”，同时不同标的仍严格隔离；
 3. 点击“开始分析”后必须展示策略结论、阶段、置信度和至少一条分析依据；
-4. 展示最近 200 根 K 线，消息请求/响应 Tab ID 必须等于 Binance Tab，后台返回和 DOM 均为 200 根，Canvas 像素必须包含多种实际绘制颜色；
+4. 展示最近 200 根 K 线，消息请求/响应 Tab ID 必须等于当前行情 Tab，后台返回和 DOM 均为 200 根，Canvas 像素必须包含多种实际绘制颜色；
 5. 将分析 K 线数量改为 64 后自动重算，请求参数、响应数据、说明文字和图表数据属性同步变为 64；
 6. 点击右上角“重置分析台”后，结果和图表被清空，策略参数恢复默认 200；
-7. 失败时保存 `test-results/binance-spot-e2e-failure.png`，通过时分别保存 200 根、64 根和重置后的真实 Side Panel 截图。
+7. 检查 Popup 固定宽度以及 Side Panel 放宽、缩窄、极窄折叠和恢复后的布局；
+8. 两个站点分别保存行情页、200 根、64 根、响应式和重置后的真实 Side Panel 截图，失败时保存对应站点的 `e2e-failure.png`。
 
-发布打包命令 `npm run package` 必须先通过该真实站点 E2E，避免仅凭单元测试发布。
+发布打包命令 `npm run package` 必须先通过两个真实站点 E2E，避免仅凭单元测试发布。
 
 ### 10.1 Agent 角色
 

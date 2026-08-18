@@ -2,6 +2,17 @@
 
 Chrome Manifest V3 纯前端 K 线量价分析插件。插件按站点选择主动行情接口或页面 WebSocket，将数据统一为 OHLCV，并通过可解释的维科夫量价规则输出阶段、信号、置信度、关键价位和风险提示。
 
+## 推荐使用方式
+
+优先在 Binance 和同花顺行情页面使用本插件：
+
+- **Binance 示例**：[BTC/USDT 现货行情](https://www.binance.com/en/trade/BTC_USDT?type=spot)。适合加密资产 K 线与成交量分析。
+- **同花顺示例**：[贵州茅台 600519](https://stockpage.10jqka.com.cn/600519/)。适合 A 股个股 K 线与成交量分析，并使用红涨绿跌配色。
+
+打开支持的行情页面并刷新后，点击浏览器工具栏中的 K Line Analyzer 图标，选择“打开侧边分析面板”，再点击“开始分析”。插件会识别当前交易对或证券代码，获取对应公开行情，并在本地生成结论、依据和图表。
+
+TradingView 作为兼容路径，仅分析页面已经推送且被插件被动捕获的行情；其可用性取决于当前图表数据。首次使用和日常使用建议选择 Binance 或同花顺。
+
 ## 功能
 
 - 页面主世界 WebSocket 只读监听，不修改宿主连接、收发帧和心跳。
@@ -38,12 +49,14 @@ npm run dev
 npm run typecheck
 npm test
 npm run test:e2e:binance
+npm run test:e2e:tonghuashun
+npm run test:e2e:release
 npm run build
 npm run package
 ```
 
 `test:e2e:binance` 会构建并加载当前 `dist`，使用隔离的 Playwright Chromium 打开
-`https://www.binance.com/en/trade/ETH_USDT?type=spot`，通过 popup 用户手势打开真实 Chrome Side Panel，验证开始分析、分析结论与依据、200/64 根 K 线非空画布、参数即时重算和分析台重置。`npm run package` 已将该真实站点 E2E 设为发布门禁。
+`https://www.binance.com/en/trade/BTC_USDT?type=spot`；`test:e2e:tonghuashun` 使用同样流程打开 `https://stockpage.10jqka.com.cn/600519/`。两项测试都会通过 Popup 用户手势打开真实 Chrome Side Panel，验证开始分析、分析结论与依据、200/64 根 K 线非空画布、参数即时重算、响应式布局和分析台重置。`test:e2e:release` 与 `npm run package` 将两个真实站点都设为发布门禁。
 
 ## Chrome Web Store 发布材料
 
@@ -52,7 +65,7 @@ npm run package
 - `assets/icons/`：Manifest 使用的 16、32、48、128 px PNG 图标及可编辑 SVG 源文件。
 - `store-assets/`：1280×800 商店截图和 440×280 小型宣传图。
 
-运行 `npm run assets:store` 会先生成图标，再执行真实 Binance E2E，并基于真实 Side Panel 产物重新生成商店素材。
+运行 `npm run assets:store` 会先生成图标，再执行真实 Binance 与同花顺 E2E，并基于两个站点的最新 Side Panel 产物重新生成商店素材。
 
 ## 目录
 

@@ -33,6 +33,7 @@ import {
   type WyckoffAnalysisResult,
 } from '../core/model/types';
 import { hasConflictingPage, isSameTabContext, resetTabScopedState, useDrawerStore } from './store';
+import { getMarketColorTheme } from './market-colors';
 import './styles.css';
 
 const extensionReady = () =>
@@ -396,7 +397,7 @@ function App() {
           {s.error}
         </p>
       )}
-      <Result result={s.result} />
+      <Result result={s.result} site={site} />
       <Chart data={s.marketData} />
       <Config
         site={site}
@@ -406,7 +407,7 @@ function App() {
     </main>
   );
 }
-function Result({ result }: { result?: WyckoffAnalysisResult }) {
+function Result({ result, site }: { result?: WyckoffAnalysisResult; site: MarketSite }) {
   if (!result)
     return (
       <section className="empty">
@@ -415,9 +416,14 @@ function Result({ result }: { result?: WyckoffAnalysisResult }) {
         <p>刷新行情页面后框选目标区域，插件会从页面请求中识别 OHLCV 数据。</p>
       </section>
     );
+  const colors = getMarketColorTheme(site);
+  const signalColorStyle = {
+    '--signal-rising': colors.rising,
+    '--signal-falling': colors.falling,
+  } as React.CSSProperties;
   return (
     <>
-      <section className={`signal ${result.signal.action.toLowerCase()}`}>
+      <section className={`signal ${result.signal.action.toLowerCase()}`} style={signalColorStyle}>
         <div>
           <span>策略结论</span>
           <strong>{result.signal.action}</strong>
@@ -453,6 +459,7 @@ function Chart({ data }: { data?: MarketData }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!ref.current || !data?.candles.length) return;
+    const colors = getMarketColorTheme(data.siteId);
     const chart = createChart(ref.current, {
       autoSize: true,
       height: 260,
@@ -464,10 +471,10 @@ function Chart({ data }: { data?: MarketData }) {
       },
     });
     const candles = chart.addSeries(CandlestickSeries, {
-      upColor: '#17b890',
-      downColor: '#ef6461',
-      wickUpColor: '#17b890',
-      wickDownColor: '#ef6461',
+      upColor: colors.rising,
+      downColor: colors.falling,
+      wickUpColor: colors.rising,
+      wickDownColor: colors.falling,
       borderVisible: false,
     });
     candles.setData(
@@ -492,7 +499,7 @@ function Chart({ data }: { data?: MarketData }) {
         data.candles.map((c) => ({
           time: Math.trunc(c.timestamp / 1000) as UTCTimestamp,
           value: c.volume,
-          color: c.close >= c.open ? '#17b89088' : '#ef646188',
+          color: c.close >= c.open ? colors.risingVolume : colors.fallingVolume,
         })),
       );
     }

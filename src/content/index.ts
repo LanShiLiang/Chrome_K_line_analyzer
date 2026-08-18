@@ -92,8 +92,8 @@ function beginSelection(): Promise<SelectionRange | null> {
     const box = document.createElement('div');
     Object.assign(box.style, {
       position: 'absolute',
-      border: '2px solid #00a878',
-      background: 'rgba(0,168,120,.12)',
+      border: '2px solid #4f8cff',
+      background: 'rgba(79,140,255,.14)',
       pointerEvents: 'none',
     });
     overlay.appendChild(box);

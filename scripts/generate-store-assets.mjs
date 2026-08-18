@@ -12,6 +12,16 @@ const storeDirectory = resolve(root, 'store-assets');
 const marketScreenshot = resolve(root, 'test-results', 'binance-spot-market-page.png');
 const analysisScreenshot = resolve(root, 'test-results', 'binance-spot-200-candles.png');
 const settingsScreenshot = resolve(root, 'test-results', 'binance-spot-64-candles.png');
+const tonghuashunMarketScreenshot = resolve(
+  root,
+  'test-results',
+  'tonghuashun-600519-market-page.png',
+);
+const tonghuashunAnalysisScreenshot = resolve(
+  root,
+  'test-results',
+  'tonghuashun-600519-200-candles.png',
+);
 
 const existingPath = async (...paths) => {
   for (const path of paths) {
@@ -86,19 +96,23 @@ try {
       access(marketScreenshot),
       access(analysisScreenshot),
       access(settingsScreenshot),
+      access(tonghuashunMarketScreenshot),
+      access(tonghuashunAnalysisScreenshot),
     ]);
-    const [market, analysis, settings] = await Promise.all([
+    const [market, analysis, settings, tonghuashunMarket, tonghuashunAnalysis] = await Promise.all([
       asDataUrl(marketScreenshot, 'image/png'),
       asDataUrl(analysisScreenshot, 'image/png'),
       asDataUrl(settingsScreenshot, 'image/png'),
+      asDataUrl(tonghuashunMarketScreenshot, 'image/png'),
+      asDataUrl(tonghuashunAnalysisScreenshot, 'image/png'),
     ]);
 
     const promoCandles = `<svg viewBox="0 0 440 280" width="440" height="280" aria-hidden="true">
-    <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b171d"/><stop offset="1" stop-color="#152c33"/></linearGradient></defs>
+    <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07111f"/><stop offset="1" stop-color="#152f54"/></linearGradient></defs>
     <rect width="440" height="280" fill="url(#bg)"/>
-    <g opacity=".28" stroke="#4c6872"><path d="M0 56h440M0 112h440M0 168h440M0 224h440M88 0v280M176 0v280M264 0v280M352 0v280"/></g>
+    <g opacity=".32" stroke="#41668f"><path d="M0 56h440M0 112h440M0 168h440M0 224h440M88 0v280M176 0v280M264 0v280M352 0v280"/></g>
     <g opacity=".75" stroke-width="5"><path d="M64 183v-70" stroke="#17b890"/><rect x="54" y="128" width="20" height="38" rx="3" fill="#17b890"/><path d="M365 165V91" stroke="#ef6461"/><rect x="355" y="111" width="20" height="34" rx="3" fill="#ef6461"/></g>
-    <path d="M34 215 112 174l54 18 76-99 56 38 108-82" fill="none" stroke="#ffc857" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+    <path d="M34 215 112 174l54 18 76-99 56 38 108-82" fill="none" stroke="#76a8ff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".95"/>
   </svg>`;
     await capture(
       440,
@@ -107,24 +121,24 @@ try {
       `${promoCandles}<img src="${icon}" alt="" style="position:absolute;width:144px;height:144px;left:148px;top:68px;filter:drop-shadow(0 18px 24px #0008)" />`,
     );
 
-    const storeScreenshot = (panel, title, subtitle, position) => `
-    <div style="position:absolute;inset:0;background:#071014">
-      <img src="${market}" alt="" style="width:100%;height:100%;object-fit:cover;filter:saturate(.72) brightness(.52)" />
-      <div style="position:absolute;inset:0;background:linear-gradient(90deg,#071014ee 0%,#071014b8 48%,#07101444 100%)"></div>
+    const storeScreenshot = (background, panel, title, subtitle, position) => `
+    <div style="position:absolute;inset:0;background:#050b16">
+      <img src="${background}" alt="" style="width:100%;height:100%;object-fit:cover;filter:saturate(.72) brightness(.52)" />
+      <div style="position:absolute;inset:0;background:linear-gradient(90deg,#06101ff2 0%,#08172bc4 48%,#0a1c344f 100%)"></div>
     </div>
-    <div style="position:absolute;left:54px;top:52px;display:flex;align-items:center;gap:14px;color:#dffdf8;font-size:20px;font-weight:700;letter-spacing:.08em">
+    <div style="position:absolute;left:54px;top:52px;display:flex;align-items:center;gap:14px;color:#dbeafe;font-size:20px;font-weight:700;letter-spacing:.08em">
       <img src="${icon}" alt="" style="width:54px;height:54px" /> K LINE ANALYZER
     </div>
     <div style="position:absolute;left:58px;top:238px;width:610px;color:white">
       <h1 style="font-size:48px;line-height:1.16;margin:0 0 20px;letter-spacing:-.03em">${title}</h1>
-      <p style="font-size:22px;line-height:1.55;margin:0;color:#b8c8ce">${subtitle}</p>
-      <div style="display:flex;gap:10px;margin-top:30px;color:#d8e3e7;font-size:15px">
-        <span style="border:1px solid #3a5a63;background:#0f2229cc;padding:9px 14px">Volume Price Analysis</span>
-        <span style="border:1px solid #3a5a63;background:#0f2229cc;padding:9px 14px">Wyckoff</span>
-        <span style="border:1px solid #3a5a63;background:#0f2229cc;padding:9px 14px">Local Processing</span>
+      <p style="font-size:22px;line-height:1.55;margin:0;color:#a9bdd6">${subtitle}</p>
+      <div style="display:flex;gap:10px;margin-top:30px;color:#dce9fa;font-size:15px">
+        <span style="border:1px solid #315987;border-radius:6px;background:#0d213dcc;padding:9px 14px">Volume Price Analysis</span>
+        <span style="border:1px solid #315987;border-radius:6px;background:#0d213dcc;padding:9px 14px">Wyckoff</span>
+        <span style="border:1px solid #315987;border-radius:6px;background:#0d213dcc;padding:9px 14px">Local Processing</span>
       </div>
     </div>
-    <div style="position:absolute;right:34px;top:26px;width:430px;height:748px;background:#101820;border:1px solid #46616b;box-shadow:0 28px 70px #000b;overflow:hidden">
+    <div style="position:absolute;right:34px;top:26px;width:430px;height:748px;background:#07111f;border:1px solid #3f6fa5;border-radius:12px;box-shadow:0 28px 70px #000b;overflow:hidden">
       <img src="${panel}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:${position}" />
     </div>`;
 
@@ -133,9 +147,10 @@ try {
       800,
       resolve(storeDirectory, 'screenshot-1-analysis-1280x800.png'),
       storeScreenshot(
+        market,
         analysis,
-        '在行情页旁完成本地量价分析',
-        '用同一批 K 线展示策略结论、分析依据、关键价位与成交量图表。',
+        '在 Binance 行情页旁完成本地分析',
+        '打开 BTC/USDT 等现货行情，在侧边面板查看量价结构、依据与成交量图表。',
         'top',
       ),
     );
@@ -144,10 +159,23 @@ try {
       800,
       resolve(storeDirectory, 'screenshot-2-settings-1280x800.png'),
       storeScreenshot(
+        market,
         settings,
         '参数调整后即时重新分析',
         '支持日、周、月周期与 20–1000 根 K 线；设置保存在 Chrome Storage。',
         'bottom',
+      ),
+    );
+    await capture(
+      1280,
+      800,
+      resolve(storeDirectory, 'screenshot-3-tonghuashun-1280x800.png'),
+      storeScreenshot(
+        tonghuashunMarket,
+        tonghuashunAnalysis,
+        '浏览同花顺个股时直接分析',
+        '根据当前证券代码获取公开 K 线；同花顺图表采用红涨绿跌的市场配色。',
+        'top',
       ),
     );
     console.log(`Generated Chrome Web Store assets in ${storeDirectory}`);

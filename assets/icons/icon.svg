@@ -3,19 +3,19 @@
   <desc id="description">A compact candlestick chart inside a dark rounded square.</desc>
   <defs>
     <linearGradient id="surface" x1="24" y1="20" x2="106" y2="112" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#172b34" />
-      <stop offset="1" stop-color="#0b141a" />
+      <stop stop-color="#142d50" />
+      <stop offset="1" stop-color="#071426" />
     </linearGradient>
     <linearGradient id="trend" x1="34" y1="86" x2="95" y2="40" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#ffc857" />
-      <stop offset="1" stop-color="#fff0a6" />
+      <stop stop-color="#4f8cff" />
+      <stop offset="1" stop-color="#b7d2ff" />
     </linearGradient>
   </defs>
-  <rect x="16" y="16" width="96" height="96" rx="24" fill="url(#surface)" stroke="#b8fff0" stroke-width="2" />
-  <path d="M34 91h61" stroke="#49616b" stroke-width="3" stroke-linecap="round" />
+  <rect x="16" y="16" width="96" height="96" rx="24" fill="url(#surface)" stroke="#d5e5ff" stroke-width="2" />
+  <path d="M34 91h61" stroke="#496b92" stroke-width="3" stroke-linecap="round" />
   <path d="M42 42v41M35 56h14v18H35z" fill="#17b890" stroke="#17b890" stroke-width="3" stroke-linejoin="round" />
   <path d="M64 35v47M57 48h14v23H57z" fill="#ef6461" stroke="#ef6461" stroke-width="3" stroke-linejoin="round" />
   <path d="M86 29v48M79 40h14v25H79z" fill="#17b890" stroke="#17b890" stroke-width="3" stroke-linejoin="round" />
   <path d="m34 86 18-17 14 7 29-34" fill="none" stroke="url(#trend)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-  <circle cx="95" cy="42" r="4" fill="#fff0a6" />
+  <circle cx="95" cy="42" r="4" fill="#d5e5ff" />
 </svg>

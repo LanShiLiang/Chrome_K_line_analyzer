@@ -14,13 +14,13 @@
 
 **简短说明**
 
-> 在 Binance、TradingView 和同花顺行情页旁，本地完成 K 线量价与 Wyckoff 分析。
+> 在 Binance 和同花顺行情页旁，本地完成 K 线量价与 Wyckoff 分析。
 
 **详细说明**
 
 > K Line Analyzer 是一个专注于交易研究的 Chrome Side Panel 扩展。
 >
-> 当你浏览受支持的 Binance、TradingView 或同花顺行情页面时，可以在侧边面板中使用当前市场的 K 线与成交量数据，查看量价结构、Wyckoff 阶段、策略结论、分析依据、关键价位和风险提示。
+> 推荐在 Binance 或同花顺行情页面使用。打开对应交易对或证券页面后，扩展会在侧边面板中使用当前市场的 K 线与成交量数据，展示量价结构、Wyckoff 阶段、策略结论、分析依据、关键价位和风险提示。TradingView 作为被动行情兼容路径保留。
 >
 > 核心能力：
 >
@@ -32,9 +32,11 @@
 >
 > 支持站点：
 >
-> - Binance：根据当前交易对，从 Binance 公开行情接口获取 K 线。
-> - TradingView：只读解析当前页面已有 WebSocket 行情，不修改网站连接。
-> - 同花顺：根据当前证券代码，从同花顺公开行情接口获取 K 线。
+> - Binance（推荐）：根据当前交易对，从 Binance 公开行情接口获取 K 线。示例：https://www.binance.com/en/trade/BTC_USDT?type=spot
+> - 同花顺（推荐）：根据当前证券代码，从同花顺公开行情接口获取 K 线。示例：https://stockpage.10jqka.com.cn/600519/
+> - TradingView（兼容）：只读解析当前页面已有 WebSocket 行情，不修改网站连接；可用性取决于页面已经推送的数据。
+>
+> 使用步骤：打开上述示例或其他受支持行情页并刷新，点击 K Line Analyzer 图标，选择“打开侧边分析面板”，再点击“开始分析”。
 >
 > 扩展不读取 Cookie、Token、登录凭证、交易账户、订单或支付信息，不包含广告、遥测和远程代码。用户设置保存在 Chrome Storage 中。
 >
@@ -98,22 +100,23 @@ Dashboard 的具体字段名称可能随界面更新而变化，含义应按以�
 
 ## 商店素材
 
-| 文件                                              |     尺寸 | 用途                     |
-| ------------------------------------------------- | -------: | ------------------------ |
-| `assets/icons/icon128.png`                        |  128×128 | ZIP 内扩展图标和商店图标 |
-| `store-assets/promo-small-440x280.png`            |  440×280 | 必填小型宣传图           |
-| `store-assets/screenshot-1-analysis-1280x800.png` | 1280×800 | 实际行情页旁的分析结果   |
-| `store-assets/screenshot-2-settings-1280x800.png` | 1280×800 | 参数调整与本地处理定位   |
+| 文件                                                 |     尺寸 | 用途                         |
+| ---------------------------------------------------- | -------: | ---------------------------- |
+| `assets/icons/icon128.png`                           |  128×128 | ZIP 内扩展图标和商店图标     |
+| `store-assets/promo-small-440x280.png`               |  440×280 | 必填小型宣传图               |
+| `store-assets/screenshot-1-analysis-1280x800.png`    | 1280×800 | 实际行情页旁的分析结果       |
+| `store-assets/screenshot-2-settings-1280x800.png`    | 1280×800 | 参数调整与本地处理定位       |
+| `store-assets/screenshot-3-tonghuashun-1280x800.png` | 1280×800 | 同花顺个股分析与红涨绿跌配色 |
 
-商店截图由真实 Binance Side Panel E2E 产物合成，不应在代码行为变化后长期复用。运行 `npm.cmd run assets:store` 可重新执行真实站点 E2E 并生成素材。
+商店截图由真实 Binance 与同花顺 Side Panel E2E 产物合成，不应在代码行为变化后长期复用。运行 `npm.cmd run assets:store` 可重新执行两个真实站点 E2E 并生成素材。
 
 ## 提交前核对
 
-- 运行 `npm.cmd run package`，确认全部单元测试、类型检查、构建审计和真实 Binance E2E 通过。
+- 运行 `npm.cmd run package`，确认全部单元测试、类型检查、构建审计以及真实 Binance、同花顺 E2E 通过。
 - 解压 `release/k-line-analyzer-0.1.1.zip`，确认根目录 `manifest.json` 与 `manifest.prod.json` 一致。
 - 搜索 ZIP 内容，确认没有 `localhost`、`127.0.0.1`、源代码、Source Map、测试文件或商店宣传素材。
 - 确认 ZIP 内包含 16、32、48、128 px PNG 图标，Manifest 的 `icons` 和 `action.default_icon` 均可解析。
-- 上传至少一张 1280×800 截图、128×128 图标和 440×280 小型宣传图。
+- 上传三张 1280×800 最新主题截图、128×128 图标和 440×280 小型宣传图；确认其中包含 Binance 与同花顺实际使用场景。
 - 逐字核对商店说明、Privacy practices、隐私政策与实际行为，避免相互矛盾。
 - 在 single purpose 字段中填写本文的单一用途，不承诺预测准确率、胜率或收益。
 - 提供可用的支持渠道，并确认开发者账号联系邮箱可正常收信。

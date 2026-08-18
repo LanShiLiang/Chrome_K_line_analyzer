@@ -29,6 +29,10 @@ const market = (candles: Candle[]): MarketData => ({
   source: { url: 'wss://test/kline', adapterId: 'test', capturedAt: 0 },
   quality: assessQuality(candles),
 });
+const marketForSite = (candles: Candle[], siteId: string): MarketData => ({
+  ...market(candles),
+  siteId,
+});
 const base = Array.from(
   { length: 200 },
   (_, i): Candle => ({
@@ -190,5 +194,11 @@ describe('analyzeMarket', () => {
     expect(result.signal.action).toBe('HOLD');
     expect(result.signal.reasonCodes).toEqual(['PRICE_ONLY']);
     expect(result.warnings).toContain('成交量缺失，无法可靠执行量价分析');
+  });
+
+  it('uses the same calculation for Tonghuashun and Binance normalized candles', () => {
+    const binance = analyzeMarket(marketForSite(base, 'binance'), DEFAULT_CONFIG);
+    const tonghuashun = analyzeMarket(marketForSite(base, 'tonghuashun'), DEFAULT_CONFIG);
+    expect({ ...tonghuashun, id: binance.id, createdAt: binance.createdAt }).toEqual(binance);
   });
 });

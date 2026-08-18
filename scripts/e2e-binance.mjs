@@ -3,11 +3,33 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 
-const BINANCE_SPOT_URL =
-  process.env.KLA_BINANCE_E2E_URL ?? 'https://www.binance.com/en/trade/ETH_USDT?type=spot';
+const E2E_PROFILES = {
+  binance: {
+    label: 'Binance',
+    url: process.env.KLA_BINANCE_E2E_URL ?? 'https://www.binance.com/en/trade/BTC_USDT?type=spot',
+    urlPattern: /binance\.com\/en\/trade\/BTC_USDT/i,
+    hostMarker: 'binance.com/',
+    pathMarker: '/trade/',
+    screenshotPrefix: 'binance-spot',
+  },
+  tonghuashun: {
+    label: '同花顺',
+    url: process.env.KLA_TONGHUASHUN_E2E_URL ?? 'https://stockpage.10jqka.com.cn/600519/',
+    urlPattern: /stockpage\.10jqka\.com\.cn\/600519\//i,
+    hostMarker: 'stockpage.10jqka.com.cn/',
+    pathMarker: '/600519/',
+    screenshotPrefix: 'tonghuashun-600519',
+  },
+};
+const profileName = process.argv[2] ?? 'binance';
+const profile = E2E_PROFILES[profileName];
+if (!profile)
+  throw new Error(
+    `未知 E2E 站点：${profileName}；可选值为 ${Object.keys(E2E_PROFILES).join('、')}`,
+  );
 const extensionPath = resolve('dist');
 const resultsPath = resolve('test-results');
-const profilePath = await mkdtemp(join(tmpdir(), 'kla-binance-e2e-'));
+const profilePath = await mkdtemp(join(tmpdir(), `kla-${profileName}-e2e-`));
 
 const existingPath = async (...paths) => {
   for (const path of paths) {
@@ -164,6 +186,46 @@ const renderedAnalysisExpression = (expectedCandles) => `(() => {
     !error.includes('旧页面数据');
 })()`;
 
+const responsiveLayoutExpression = `(() => {
+  const viewportWidth = document.documentElement.clientWidth;
+  const pageScrollWidth = Math.max(
+    document.documentElement.scrollWidth,
+    document.body.scrollWidth
+  );
+  const selectors = [
+    'main',
+    'header',
+    'section',
+    'details',
+    '.actions',
+    '.signal',
+    '.market-chart'
+  ];
+  const overflowingElements = [...document.querySelectorAll(selectors.join(','))]
+    .filter((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.left < -1 || rect.right > viewportWidth + 1;
+    })
+    .map((element) => ({
+      tag: element.tagName,
+      className: element.className,
+      left: element.getBoundingClientRect().left,
+      right: element.getBoundingClientRect().right
+    }));
+  const diagnostics = { viewportWidth, pageScrollWidth, overflowingElements };
+  globalThis.__klaE2EResponsiveDiagnostics = diagnostics;
+  return pageScrollWidth <= viewportWidth + 1 && overflowingElements.length === 0;
+})()`;
+
+const collapsedLayoutExpression = `(() => {
+  const drawer = document.querySelector('.drawer-shell');
+  const viewportWidth = document.documentElement.clientWidth;
+  return drawer instanceof HTMLElement &&
+    [...drawer.children].every((child) => getComputedStyle(child).display === 'none') &&
+    getComputedStyle(drawer, '::before').content.includes('↔') &&
+    Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) <= viewportWidth + 1;
+})()`;
+
 let context;
 let sidePanel;
 try {
@@ -184,25 +246,34 @@ try {
   serviceWorker ??= await context.waitForEvent('serviceworker', { timeout: 20_000 });
   const extensionId = new URL(serviceWorker.url()).host;
   const [marketPage] = context.pages();
-  await marketPage.goto(BINANCE_SPOT_URL, {
+  await marketPage.goto(profile.url, {
     waitUntil: 'load',
     timeout: 60_000,
   });
-  await marketPage.waitForURL(/binance\.com\/en\/trade\/ETH_USDT/, { timeout: 60_000 });
+  await marketPage.waitForURL(profile.urlPattern, { timeout: 60_000 });
   await marketPage.waitForTimeout(2_000);
 
-  const marketTabId = await serviceWorker.evaluate(async () => {
+  const marketTabId = await serviceWorker.evaluate(async (label) => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id === undefined) throw new Error('未找到 Binance E2E 标签页');
+    if (tab?.id === undefined) throw new Error(`未找到 ${label} E2E 标签页`);
     return tab.id;
-  });
+  }, profile.label);
 
-  // 通过真实 popup 用户手势打开与 Binance Tab 绑定的 Chrome Side Panel。
+  // 通过真实 popup 用户手势打开与当前行情 Tab 绑定的 Chrome Side Panel。
   const popupPage = await context.newPage();
   await popupPage.addInitScript((tabId) => {
     chrome.tabs.query = async () => [{ id: tabId }];
   }, marketTabId);
   await popupPage.goto(`chrome-extension://${extensionId}/popup.html`);
+  await popupPage.setViewportSize({ width: 460, height: 280 });
+  await popupPage.waitForTimeout(220);
+  const popupLayout = await popupPage.evaluate(() => ({
+    bodyWidth: document.body.getBoundingClientRect().width,
+    shellWidth: document.querySelector('.popup-shell')?.getBoundingClientRect().width,
+  }));
+  if (popupLayout.bodyWidth !== 420 || popupLayout.shellWidth !== 420)
+    throw new Error(`Popup 宽度异常：${JSON.stringify(popupLayout)}`);
+  await popupPage.screenshot({ path: resolve(resultsPath, 'popup-blue-theme.png'), type: 'png' });
   await popupPage.getByRole('button', { name: '打开侧边分析面板' }).click();
   await marketPage.waitForTimeout(500);
 
@@ -228,15 +299,16 @@ try {
     mobile: false,
   });
   await sidePanel.waitFor(
-    `document.body.innerText.includes('已识别 Binance')`,
-    'Side Panel 识别 Binance',
+    `document.body.innerText.includes(${JSON.stringify(`已识别${profile.label === 'Binance' ? ' Binance' : profile.label}`)})`,
+    `Side Panel 识别 ${profile.label}`,
   );
 
   // 旁路记录真实 Side Panel 的消息，并制造同一交易页的无害 URL 快照差异。
   await sidePanel.evaluate(`(() => {
     const query = chrome.tabs.query.bind(chrome.tabs);
     chrome.tabs.query = async (queryInfo) => (await query(queryInfo)).map((tab) => {
-      if (!tab.url?.includes('binance.com/') || !tab.url.includes('/trade/')) return tab;
+      if (!tab.url?.includes(${JSON.stringify(profile.hostMarker)}) ||
+          !tab.url.includes(${JSON.stringify(profile.pathMarker)})) return tab;
       const url = new URL(tab.url);
       url.searchParams.set('theme', 'dark');
       url.searchParams.set('kla_e2e', 'same-market-url-variant');
@@ -265,16 +337,52 @@ try {
   await sidePanel.waitFor(renderedAnalysisExpression(200), '渲染 200 根 K 线和分析结果');
   const firstTrace = await sidePanel.evaluate(`globalThis.__klaE2EAnalysisTraces.at(-1)`);
   if (firstTrace?.message?.tabId !== marketTabId)
-    throw new Error('RUN_ANALYSIS 未绑定到当前 Binance 标签页');
+    throw new Error(`RUN_ANALYSIS 未绑定到当前 ${profile.label} 标签页`);
   if (firstTrace?.response?.data?.context?.tabId !== marketTabId)
-    throw new Error('分析响应未绑定到当前 Binance 标签页');
+    throw new Error(`分析响应未绑定到当前 ${profile.label} 标签页`);
   if (firstTrace?.message?.payload?.config?.analysisCandleCount !== 200)
     throw new Error('默认分析 K 线数量未传入后台');
   if (firstTrace?.response?.data?.marketData?.candles?.length !== 200)
     throw new Error('后台没有返回 200 根 K 线');
-  await sidePanel.screenshot(resolve(resultsPath, 'binance-spot-200-candles.png'));
+
+  // 回归真实用户操作：先放宽 Side Panel，再缩窄，所有内容和图表容器都必须重新排版。
+  await sidePanel.send('Emulation.setDeviceMetricsOverride', {
+    width: 640,
+    height: 1000,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await sidePanel.waitFor(responsiveLayoutExpression, 'Side Panel 放宽后的响应式布局');
+  await sidePanel.send('Emulation.setDeviceMetricsOverride', {
+    width: 300,
+    height: 1000,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await sidePanel.waitFor(responsiveLayoutExpression, 'Side Panel 缩窄后的响应式布局');
+  await sidePanel.screenshot(
+    resolve(resultsPath, `${profile.screenshotPrefix}-responsive-300px.png`),
+  );
+  await sidePanel.send('Emulation.setDeviceMetricsOverride', {
+    width: 80,
+    height: 1000,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await sidePanel.waitFor(collapsedLayoutExpression, 'Side Panel 极窄折叠状态');
+  await sidePanel.screenshot(
+    resolve(resultsPath, `${profile.screenshotPrefix}-collapsed-80px.png`),
+  );
+  await sidePanel.send('Emulation.setDeviceMetricsOverride', {
+    width: 480,
+    height: 1000,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await sidePanel.waitFor(responsiveLayoutExpression, 'Side Panel 恢复宽度后的响应式布局');
+  await sidePanel.screenshot(resolve(resultsPath, `${profile.screenshotPrefix}-200-candles.png`));
   await marketPage.screenshot({
-    path: resolve(resultsPath, 'binance-spot-market-page.png'),
+    path: resolve(resultsPath, `${profile.screenshotPrefix}-market-page.png`),
     type: 'png',
   });
 
@@ -292,7 +400,7 @@ try {
     throw new Error('修改后的分析 K 线数量未传入后台');
   if (secondTrace?.response?.data?.marketData?.candles?.length !== 64)
     throw new Error('策略参数变更后后台没有返回 64 根 K 线');
-  await sidePanel.screenshot(resolve(resultsPath, 'binance-spot-64-candles.png'));
+  await sidePanel.screenshot(resolve(resultsPath, `${profile.screenshotPrefix}-64-candles.png`));
 
   await sidePanel.evaluate(`(() => {
     const button = document.querySelector('button[aria-label="重置分析台"]');
@@ -311,12 +419,12 @@ try {
     })()`,
     '重置分析台',
   );
-  await sidePanel.screenshot(resolve(resultsPath, 'binance-spot-reset.png'));
-  console.log(`Binance Spot real Side Panel E2E passed: ${BINANCE_SPOT_URL}`);
+  await sidePanel.screenshot(resolve(resultsPath, `${profile.screenshotPrefix}-reset.png`));
+  console.log(`${profile.label} real Side Panel E2E passed: ${profile.url}`);
 } catch (error) {
   if (sidePanel)
     await sidePanel
-      .screenshot(resolve(resultsPath, 'binance-spot-e2e-failure.png'))
+      .screenshot(resolve(resultsPath, `${profile.screenshotPrefix}-e2e-failure.png`))
       .catch(() => undefined);
   throw error;
 } finally {
