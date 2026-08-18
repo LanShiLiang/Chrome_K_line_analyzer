@@ -1,0 +1,201 @@
+{
+  "extension_name": { "message": "K 线量价分析器" },
+  "extension_name_dev": { "message": "K 线量价分析器（开发版）" },
+  "extension_description": {
+    "message": "在支持的 Binance 和同花顺行情页旁，本地完成 K 线量价与维科夫分析。"
+  },
+  "extension_description_dev": {
+    "message": "在支持的行情页旁，本地完成 K 线量价与维科夫分析（开发构建）。"
+  },
+  "action_title": { "message": "打开 K 线量价分析器" },
+  "action_title_dev": { "message": "打开 K 线量价分析器（开发版）" },
+  "page_title": { "message": "K 线量价分析器" },
+
+  "popup_title": { "message": "量价分析器" },
+  "popup_opening": { "message": "正在打开…" },
+  "popup_open_panel": { "message": "打开侧边分析面板" },
+  "popup_privacy": { "message": "仅处理受支持行情页中的市场数据，并在本地生成分析。" },
+  "disclaimer": { "message": "分析结果仅供技术研究，不构成投资建议。" },
+
+  "drawer_title": { "message": "量价分析台" },
+  "drawer_close_panel": { "message": "关闭分析面板" },
+  "drawer_reset_analyzer": { "message": "重置分析台" },
+  "drawer_privacy": { "message": "行情与分析结果不上传至开发者服务器。" },
+  "drawer_select_candles": { "message": "框选 K 线" },
+  "drawer_analyzing": { "message": "分析中" },
+  "drawer_start_analysis": { "message": "开始分析" },
+  "drawer_empty_title": { "message": "等待分析" },
+  "drawer_empty_description": {
+    "message": "刷新行情页面后框选目标区域，插件会从页面请求中识别 OHLCV 数据。"
+  },
+  "drawer_strategy_conclusion": { "message": "策略结论" },
+  "drawer_stage": { "message": "阶段" },
+  "drawer_confidence": { "message": "置信度" },
+  "drawer_analysis_evidence": { "message": "分析依据" },
+  "drawer_chart_title": { "message": "K 线与成交量" },
+  "drawer_chart_summary": {
+    "message": "本次分析与图表均使用最近 $COUNT$ 根 K 线。",
+    "placeholders": { "count": { "content": "$1", "example": "200" } }
+  },
+  "drawer_chart_summary_tradingview": {
+    "message": "跟随当前 TradingView 图表，本次分析与图表均使用最近 $COUNT$ 根 K 线。",
+    "placeholders": { "count": { "content": "$1", "example": "200" } }
+  },
+  "drawer_chart_no_volume": {
+    "message": "当前图表数据不含成交量，仅展示 K 线并降级为价格结构分析。"
+  },
+  "drawer_strategy_parameters": { "message": "策略参数" },
+  "drawer_strategy_settings": { "message": "策略设置" },
+  "drawer_settings_locked_tradingview": {
+    "message": "TradingView 跟随当前图表周期与实际捕获数据，当前页面不可修改。"
+  },
+  "drawer_settings_description": {
+    "message": "分析和图表使用相同的 K 线数量，修改后立即应用并自动保存。"
+  },
+  "drawer_tradingview_rules": { "message": "TradingView 当前图表分析规则" },
+  "drawer_market_period": { "message": "行情周期" },
+  "drawer_follow_current_chart": { "message": "跟随当前图表" },
+  "drawer_analysis_candle_count": { "message": "分析 K 线数量" },
+  "drawer_captured_candles": {
+    "message": "已捕获 $COUNT$ 根",
+    "placeholders": { "count": { "content": "$1", "example": "200" } }
+  },
+  "drawer_waiting_chart_data": { "message": "等待图表数据" },
+  "period_day": { "message": "日线" },
+  "period_week": { "message": "周线" },
+  "period_month": { "message": "月线" },
+
+  "status_syncing": { "message": "正在同步当前标签页行情上下文" },
+  "status_active_site": {
+    "message": "已识别 $SITE$，开始分析时主动获取行情。",
+    "placeholders": { "site": { "content": "$1", "example": "Binance" } }
+  },
+  "status_tradingview_captured_one": { "message": "已被动捕获 1 组 TradingView 行情" },
+  "status_tradingview_captured_many": {
+    "message": "已被动捕获 $COUNT$ 组 TradingView 行情",
+    "placeholders": { "count": { "content": "$1", "example": "3" } }
+  },
+  "status_tradingview_waiting": { "message": "等待 TradingView 页面推送行情数据" },
+  "status_passive_captured_one": { "message": "已被动捕获 1 组行情" },
+  "status_passive_captured_many": {
+    "message": "已被动捕获 $COUNT$ 组行情",
+    "placeholders": { "count": { "content": "$1", "example": "3" } }
+  },
+  "status_active_unsupported": { "message": "当前页面暂不支持主动获取行情" },
+
+  "site_binance": { "message": "Binance" },
+  "site_tonghuashun": { "message": "同花顺" },
+  "site_tradingview": { "message": "TradingView" },
+
+  "action_buy": { "message": "买入" },
+  "action_sell": { "message": "卖出" },
+  "action_hold": { "message": "观望" },
+  "action_risk": { "message": "风险提示" },
+  "stage_accumulation": { "message": "吸筹阶段" },
+  "stage_spring_test": { "message": "Spring 测试" },
+  "stage_markup": { "message": "拉升阶段" },
+  "stage_distribution": { "message": "派发阶段" },
+  "stage_markdown": { "message": "下跌阶段" },
+  "stage_unknown": { "message": "阶段待确认" },
+  "volume_spike": { "message": "成交量显著放大" },
+  "volume_low": { "message": "成交量偏低" },
+  "volume_normal": { "message": "成交量正常" },
+
+  "evidence_price_only_label": { "message": "仅价格结构判断" },
+  "evidence_price_only_detail": {
+    "message": "当前数据缺少可用成交量，未输出依赖量能确认的维科夫阶段和买卖信号。"
+  },
+  "evidence_b003_label": { "message": "放量突破" },
+  "evidence_b003_detail": { "message": "价格放量突破前区间阻力。" },
+  "evidence_s003_label": { "message": "放量跌破" },
+  "evidence_s003_detail": { "message": "价格放量跌破前区间支撑。" },
+  "evidence_b001_label": { "message": "Spring 测试" },
+  "evidence_b001_detail": { "message": "价格跌破支撑后快速收回。" },
+  "evidence_s002_label": { "message": "价量背离" },
+  "evidence_s002_detail": { "message": "价格创新高但平均成交量下降。" },
+  "evidence_b004_label": { "message": "区间吸筹候选" },
+  "evidence_b004_detail": { "message": "价格处于窄幅区间，等待突破确认。" },
+  "evidence_trend_up_label": { "message": "上涨趋势" },
+  "evidence_trend_up_detail": { "message": "分析窗口内价格保持上行。" },
+  "evidence_trend_down_label": { "message": "下跌趋势" },
+  "evidence_trend_down_detail": { "message": "分析窗口内价格持续下行。" },
+
+  "warning_active_request_fallback": {
+    "message": "主动行情请求失败，本次已回退到页面被动捕获的数据。"
+  },
+  "warning_insufficient_data": {
+    "message": "数据不足：至少需要 $COUNT$ 根 K 线。",
+    "placeholders": { "count": { "content": "$1", "example": "20" } }
+  },
+  "warning_missing_volume": { "message": "成交量缺失，无法可靠执行量价分析。" },
+  "warning_ignored_candles": {
+    "message": "已忽略 $COUNT$ 条无效或重复的 K 线数据。",
+    "placeholders": { "count": { "content": "$1", "example": "2" } }
+  },
+  "warning_unclear_structure": { "message": "当前量价结构不明确，建议等待确认。" },
+
+  "error_extension_unavailable": { "message": "当前环境无法连接 Chrome 扩展服务。" },
+  "error_current_tab_not_found": { "message": "未找到当前标签页。" },
+  "error_analyzable_tab_not_found": { "message": "未找到可分析的活动标签页。" },
+  "error_open_side_panel": { "message": "无法打开侧边分析面板。" },
+  "error_refresh_page_state": { "message": "刷新页面状态失败。" },
+  "error_sync_tab": { "message": "同步当前标签页失败。" },
+  "error_initialize_page": { "message": "初始化页面状态失败。" },
+  "error_start_selection": { "message": "无法启动 K 线框选。" },
+  "error_tab_switching": { "message": "当前标签页正在切换，请稍后重新分析。" },
+  "error_result_context_changed": {
+    "message": "分析结果与当前标签页不一致，已阻止展示旧页面数据。"
+  },
+  "error_analysis_retry": { "message": "分析失败，请刷新行情页面后重试。" },
+  "error_analysis_service": { "message": "无法连接分析服务。" },
+  "error_tab_required": { "message": "缺少 Tab 上下文。" },
+  "error_page_context_missing": { "message": "无法确认当前行情页面，请刷新后重试。" },
+  "error_page_context_changed": { "message": "当前标签页已经切换，请等待页面状态同步后重新分析。" },
+  "error_page_context_changed_during_analysis": {
+    "message": "分析期间行情页面已切换，本次旧页面结果已丢弃。"
+  },
+  "error_market_data_tradingview_not_found": {
+    "message": "尚未被动捕获到 TradingView 行情，请等待图表加载或切换周期后重试。"
+  },
+  "error_market_data_not_found": { "message": "未获取到行情数据，请确认当前页面标的后重试。" },
+  "error_analysis_failed": { "message": "分析计算失败，请检查策略参数或刷新行情页面后重试。" },
+  "error_config_period_invalid": { "message": "行情周期无效，请重新选择。" },
+  "error_config_candle_count_integer": { "message": "分析 K 线数量必须是整数。" },
+  "error_config_candle_count_min": {
+    "message": "分析 K 线数量不能少于 $COUNT$ 根。",
+    "placeholders": { "count": { "content": "$1", "example": "20" } }
+  },
+  "error_config_candle_count_max": {
+    "message": "分析 K 线数量不能超过当前页面上限 $COUNT$ 根。",
+    "placeholders": { "count": { "content": "$1", "example": "1000" } }
+  },
+  "error_market_data_invalid": {
+    "message": "捕获到的行情数据无有效 K 线，请确认标的和周期后刷新页面重试。"
+  },
+  "error_analysis_candles_insufficient": {
+    "message": "当前仅获取 $ACTUAL$ 根有效 K 线，策略需要 $REQUIRED$ 根。",
+    "placeholders": {
+      "actual": { "content": "$1", "example": "64" },
+      "required": { "content": "$2", "example": "200" }
+    }
+  },
+  "error_page_url_invalid": { "message": "当前行情页面地址无效，请刷新后重试。" },
+  "error_binance_symbol_unrecognized": { "message": "无法从 Binance 页面识别交易对。" },
+  "error_tonghuashun_symbol_unrecognized": { "message": "无法从同花顺页面识别股票代码。" },
+  "error_market_request_timeout": { "message": "行情接口请求超时，请检查网络后重试。" },
+  "error_binance_market_request_failed": { "message": "主动获取 Binance 行情失败。" },
+  "error_tonghuashun_market_request_failed": { "message": "主动获取同花顺行情失败。" },
+  "error_market_request_failed": {
+    "message": "主动获取 $SITE$ 行情失败。",
+    "placeholders": { "site": { "content": "$1", "example": "Binance" } }
+  },
+  "error_market_http": {
+    "message": "行情接口返回 HTTP $STATUS$。",
+    "placeholders": { "status": { "content": "$1", "example": "500" } }
+  },
+  "error_binance_response_parse": { "message": "Binance 行情响应无法解析。" },
+  "error_binance_response_format": { "message": "Binance 行情响应格式无效。" },
+  "error_tonghuashun_response_format": { "message": "同花顺行情响应格式无效。" },
+  "error_tonghuashun_response_parse": { "message": "同花顺行情响应无法解析。" },
+  "error_tonghuashun_response_missing_candles": { "message": "同花顺行情响应缺少 K 线数据。" }
+}

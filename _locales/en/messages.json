@@ -1,0 +1,259 @@
+{
+  "extension_name": { "message": "K Line Analyzer" },
+  "extension_name_dev": { "message": "K Line Analyzer (Dev)" },
+  "extension_description": {
+    "message": "Run local candlestick, volume-price, and Wyckoff analysis beside supported Binance and Tonghuashun market pages."
+  },
+  "extension_description_dev": {
+    "message": "Run local candlestick, volume-price, and Wyckoff analysis beside supported market pages (development build)."
+  },
+  "action_title": { "message": "Open K Line Analyzer" },
+  "action_title_dev": { "message": "Open K Line Analyzer (Dev)" },
+  "page_title": { "message": "K Line Analyzer" },
+
+  "popup_title": { "message": "Volume-Price Analyzer" },
+  "popup_opening": { "message": "Opening…" },
+  "popup_open_panel": { "message": "Open Side Panel" },
+  "popup_privacy": {
+    "message": "Processes market data only from supported pages and generates analysis locally."
+  },
+  "disclaimer": {
+    "message": "Results are for technical research only and are not investment advice."
+  },
+
+  "drawer_title": { "message": "Volume-Price Workbench" },
+  "drawer_close_panel": { "message": "Close analysis panel" },
+  "drawer_reset_analyzer": { "message": "Reset analyzer" },
+  "drawer_privacy": {
+    "message": "Market data and analysis results are not uploaded to a developer server."
+  },
+  "drawer_select_candles": { "message": "Select Candles" },
+  "drawer_analyzing": { "message": "Analyzing" },
+  "drawer_start_analysis": { "message": "Start Analysis" },
+  "drawer_empty_title": { "message": "Ready to Analyze" },
+  "drawer_empty_description": {
+    "message": "Refresh the market page, then select the target area. The extension will identify OHLCV data from page requests."
+  },
+  "drawer_strategy_conclusion": { "message": "Strategy Result" },
+  "drawer_stage": { "message": "Stage" },
+  "drawer_confidence": { "message": "Confidence" },
+  "drawer_analysis_evidence": { "message": "Analysis Evidence" },
+  "drawer_chart_title": { "message": "Candlesticks and Volume" },
+  "drawer_chart_summary": {
+    "message": "This analysis and chart use the latest $COUNT$ candles.",
+    "placeholders": { "count": { "content": "$1", "example": "200" } }
+  },
+  "drawer_chart_summary_tradingview": {
+    "message": "Following the current TradingView chart, this analysis and chart use the latest $COUNT$ candles.",
+    "placeholders": { "count": { "content": "$1", "example": "200" } }
+  },
+  "drawer_chart_no_volume": {
+    "message": "The current chart data has no volume. Only candlesticks are shown, and analysis is limited to price structure."
+  },
+  "drawer_strategy_parameters": { "message": "Strategy Parameters" },
+  "drawer_strategy_settings": { "message": "Strategy Settings" },
+  "drawer_settings_locked_tradingview": {
+    "message": "TradingView follows the current chart period and captured data. These settings cannot be changed here."
+  },
+  "drawer_settings_description": {
+    "message": "Analysis and charting use the same candle count. Changes apply immediately and are saved automatically."
+  },
+  "drawer_tradingview_rules": { "message": "Current TradingView chart analysis rules" },
+  "drawer_market_period": { "message": "Market Period" },
+  "drawer_follow_current_chart": { "message": "Follow current chart" },
+  "drawer_analysis_candle_count": { "message": "Analysis Candle Count" },
+  "drawer_captured_candles": {
+    "message": "$COUNT$ captured",
+    "placeholders": { "count": { "content": "$1", "example": "200" } }
+  },
+  "drawer_waiting_chart_data": { "message": "Waiting for chart data" },
+  "period_day": { "message": "Daily" },
+  "period_week": { "message": "Weekly" },
+  "period_month": { "message": "Monthly" },
+
+  "status_syncing": { "message": "Syncing the current tab market context" },
+  "status_active_site": {
+    "message": "$SITE$ recognized. Market data will be requested when analysis starts.",
+    "placeholders": { "site": { "content": "$1", "example": "Binance" } }
+  },
+  "status_tradingview_captured_one": {
+    "message": "Passively captured 1 TradingView market series"
+  },
+  "status_tradingview_captured_many": {
+    "message": "Passively captured $COUNT$ TradingView market series",
+    "placeholders": { "count": { "content": "$1", "example": "3" } }
+  },
+  "status_tradingview_waiting": {
+    "message": "Waiting for the TradingView page to stream market data"
+  },
+  "status_passive_captured_one": { "message": "Passively captured 1 market series" },
+  "status_passive_captured_many": {
+    "message": "Passively captured $COUNT$ market series",
+    "placeholders": { "count": { "content": "$1", "example": "3" } }
+  },
+  "status_active_unsupported": {
+    "message": "Active market-data requests are not supported on this page"
+  },
+
+  "site_binance": { "message": "Binance" },
+  "site_tonghuashun": { "message": "Tonghuashun" },
+  "site_tradingview": { "message": "TradingView" },
+
+  "action_buy": { "message": "Buy" },
+  "action_sell": { "message": "Sell" },
+  "action_hold": { "message": "Hold" },
+  "action_risk": { "message": "Risk" },
+  "stage_accumulation": { "message": "Accumulation" },
+  "stage_spring_test": { "message": "Spring Test" },
+  "stage_markup": { "message": "Markup" },
+  "stage_distribution": { "message": "Distribution" },
+  "stage_markdown": { "message": "Markdown" },
+  "stage_unknown": { "message": "Undetermined" },
+  "volume_spike": { "message": "Volume Spike" },
+  "volume_low": { "message": "Low Volume" },
+  "volume_normal": { "message": "Normal Volume" },
+
+  "evidence_price_only_label": { "message": "Price-Structure-Only Analysis" },
+  "evidence_price_only_detail": {
+    "message": "Usable volume is unavailable, so no volume-confirmed Wyckoff stage or trading signal is produced."
+  },
+  "evidence_b003_label": { "message": "Volume-Confirmed Breakout" },
+  "evidence_b003_detail": { "message": "Price broke above prior range resistance on high volume." },
+  "evidence_s003_label": { "message": "Volume-Confirmed Breakdown" },
+  "evidence_s003_detail": { "message": "Price broke below prior range support on high volume." },
+  "evidence_b001_label": { "message": "Spring Test" },
+  "evidence_b001_detail": { "message": "Price quickly recovered after moving below support." },
+  "evidence_s002_label": { "message": "Price-Volume Divergence" },
+  "evidence_s002_detail": { "message": "Price reached a new high while average volume declined." },
+  "evidence_b004_label": { "message": "Potential Accumulation Range" },
+  "evidence_b004_detail": {
+    "message": "Price remains in a narrow range while awaiting breakout confirmation."
+  },
+  "evidence_trend_up_label": { "message": "Uptrend" },
+  "evidence_trend_up_detail": {
+    "message": "Price remained in an upward trend during the analysis window."
+  },
+  "evidence_trend_down_label": { "message": "Downtrend" },
+  "evidence_trend_down_detail": {
+    "message": "Price remained in a downward trend during the analysis window."
+  },
+
+  "warning_active_request_fallback": {
+    "message": "The active market-data request failed. This run uses data passively captured from the page."
+  },
+  "warning_insufficient_data": {
+    "message": "Insufficient data: at least $COUNT$ candles are required.",
+    "placeholders": { "count": { "content": "$1", "example": "20" } }
+  },
+  "warning_missing_volume": {
+    "message": "Volume is missing, so volume-price analysis cannot be performed reliably."
+  },
+  "warning_ignored_candles": {
+    "message": "Ignored $COUNT$ invalid or duplicate candle records.",
+    "placeholders": { "count": { "content": "$1", "example": "2" } }
+  },
+  "warning_unclear_structure": {
+    "message": "The current price-volume structure is unclear. Wait for confirmation."
+  },
+
+  "error_extension_unavailable": {
+    "message": "This page cannot connect to the Chrome extension service."
+  },
+  "error_current_tab_not_found": { "message": "The current tab could not be found." },
+  "error_analyzable_tab_not_found": { "message": "No active tab is available for analysis." },
+  "error_open_side_panel": { "message": "The analysis side panel could not be opened." },
+  "error_refresh_page_state": { "message": "The page state could not be refreshed." },
+  "error_sync_tab": { "message": "The current tab could not be synchronized." },
+  "error_initialize_page": { "message": "The page state could not be initialized." },
+  "error_start_selection": { "message": "Candlestick selection could not be started." },
+  "error_tab_switching": {
+    "message": "The current tab is changing. Try the analysis again shortly."
+  },
+  "error_result_context_changed": {
+    "message": "The result belongs to a different tab context, so stale page data was not displayed."
+  },
+  "error_analysis_retry": { "message": "Analysis failed. Refresh the market page and try again." },
+  "error_analysis_service": { "message": "The analysis service could not be reached." },
+  "error_tab_required": { "message": "Tab context is required." },
+  "error_page_context_missing": {
+    "message": "The current market page could not be confirmed. Refresh and try again."
+  },
+  "error_page_context_changed": {
+    "message": "The current tab has changed. Wait for page synchronization, then run the analysis again."
+  },
+  "error_page_context_changed_during_analysis": {
+    "message": "The market page changed during analysis, so the stale result was discarded."
+  },
+  "error_market_data_tradingview_not_found": {
+    "message": "No TradingView market data has been captured yet. Wait for the chart to load or change its period, then try again."
+  },
+  "error_market_data_not_found": {
+    "message": "No market data was found. Confirm the current page symbol and try again."
+  },
+  "error_analysis_failed": {
+    "message": "The calculation failed. Check the strategy settings or refresh the market page and try again."
+  },
+  "error_config_period_invalid": { "message": "The market period is invalid. Select it again." },
+  "error_config_candle_count_integer": {
+    "message": "The analysis candle count must be an integer."
+  },
+  "error_config_candle_count_min": {
+    "message": "The analysis candle count cannot be less than $COUNT$.",
+    "placeholders": { "count": { "content": "$1", "example": "20" } }
+  },
+  "error_config_candle_count_max": {
+    "message": "The analysis candle count cannot exceed the current page limit of $COUNT$.",
+    "placeholders": { "count": { "content": "$1", "example": "1000" } }
+  },
+  "error_market_data_invalid": {
+    "message": "The captured market data contains no valid candles. Confirm the symbol and period, then refresh the page."
+  },
+  "error_analysis_candles_insufficient": {
+    "message": "Only $ACTUAL$ valid candles are available; the strategy requires $REQUIRED$.",
+    "placeholders": {
+      "actual": { "content": "$1", "example": "64" },
+      "required": { "content": "$2", "example": "200" }
+    }
+  },
+  "error_page_url_invalid": {
+    "message": "The current market-page address is invalid. Refresh and try again."
+  },
+  "error_binance_symbol_unrecognized": {
+    "message": "The trading pair could not be identified from the Binance page."
+  },
+  "error_tonghuashun_symbol_unrecognized": {
+    "message": "The stock code could not be identified from the Tonghuashun page."
+  },
+  "error_market_request_timeout": {
+    "message": "The market-data request timed out. Check the network and try again."
+  },
+  "error_binance_market_request_failed": {
+    "message": "The active Binance market-data request failed."
+  },
+  "error_tonghuashun_market_request_failed": {
+    "message": "The active Tonghuashun market-data request failed."
+  },
+  "error_market_request_failed": {
+    "message": "The active $SITE$ market-data request failed.",
+    "placeholders": { "site": { "content": "$1", "example": "Binance" } }
+  },
+  "error_market_http": {
+    "message": "The market-data endpoint returned HTTP $STATUS$.",
+    "placeholders": { "status": { "content": "$1", "example": "500" } }
+  },
+  "error_binance_response_parse": {
+    "message": "The Binance market-data response could not be parsed."
+  },
+  "error_binance_response_format": {
+    "message": "The Binance market-data response has an invalid format."
+  },
+  "error_tonghuashun_response_format": {
+    "message": "The Tonghuashun market-data response has an invalid format."
+  },
+  "error_tonghuashun_response_parse": {
+    "message": "The Tonghuashun market-data response could not be parsed."
+  },
+  "error_tonghuashun_response_missing_candles": {
+    "message": "The Tonghuashun response contains no candlestick data."
+  }
+}

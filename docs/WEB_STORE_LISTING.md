@@ -1,122 +1,121 @@
-# Chrome Web Store 发布文案与数据披露
+# Chrome Web Store Listing and Data Disclosure
 
-本文档是 Chrome Web Store Developer Dashboard 的填写底稿。提交前应逐项与当前生产 ZIP、`PRIVACY.md` 和实际产品行为核对。
+[English](./WEB_STORE_LISTING.md) | [简体中文](./WEB_STORE_LISTING.zh-CN.md)
 
-## 单一用途
+This document is the English-default source for the Chrome Web Store Developer Dashboard. Before submission, compare every field with the production ZIP, `PRIVACY.md`, and the current extension behavior.
 
-> 在用户浏览受支持的行情网页时，在浏览器本地提供 K 线量价与 Wyckoff 分析。
+## Single Purpose
 
-## 商店名称与说明
+> Provide local candlestick, volume-price, and Wyckoff analysis while the user browses a supported market page.
 
-**名称**
+## Store Name and Description
+
+**Name**
 
 > K Line Analyzer
 
-**简短说明**
+**Short description**
 
-> 在 Binance 和同花顺行情页旁，本地完成 K 线量价与 Wyckoff 分析。
+> Analyze candlesticks, volume-price structure, and Wyckoff stages locally beside supported Binance and Tonghuashun market pages.
 
-**详细说明**
+**Detailed description**
 
-> K Line Analyzer 是一个专注于交易研究的 Chrome Side Panel 扩展。
+> K Line Analyzer is a focused Chrome Side Panel extension for market research.
 >
-> 推荐在 Binance 或同花顺行情页面使用。打开对应交易对或证券页面后，扩展会在侧边面板中使用当前市场的 K 线与成交量数据，展示量价结构、Wyckoff 阶段、策略结论、分析依据、关键价位和风险提示。TradingView 作为被动行情兼容路径保留。
+> Open a supported Binance or Tonghuashun market page, then use the side panel to review current candlestick and volume data, volume-price structure, Wyckoff stages, strategy results, evidence, key levels, and risk warnings. TradingView remains available as a passive current-chart compatibility path.
 >
-> 核心能力：
+> Core capabilities:
 >
-> - Volume Price Analysis：统一分析 OHLCV 与成交量变化。
-> - Wyckoff Analysis：识别吸筹、Spring 测试、拉升、派发和下跌等结构。
-> - Local Processing：策略计算和分析结果留在浏览器本地，不上传至开发者服务器。
-> - Adjustable Context：支持日、周、月周期和 20–1000 根 K 线，修改后即时重新分析。
-> - Explainable Results：展示结论依据、置信度和风险提示，而不是自动下单或收益承诺。
+> - Volume-Price Analysis: normalizes and evaluates OHLCV and volume changes.
+> - Wyckoff Analysis: identifies accumulation, Spring tests, markup, distribution, and markdown structures.
+> - Local Processing: strategy calculations and results stay in the browser and are not uploaded to a developer server.
+> - Adjustable Context: supports daily, weekly, and monthly periods with 20–1000 candles.
+> - Explainable Results: shows reason codes, evidence, confidence, and risk warnings instead of placing orders or promising returns.
+> - Localized Interface: English is the default, with Simplified Chinese selected automatically from the Chrome UI language.
 >
-> 支持站点：
+> Supported sites:
 >
-> - Binance（推荐）：根据当前交易对，从 Binance 公开行情接口获取 K 线。示例：https://www.binance.com/en/trade/BTC_USDT?type=spot
-> - 同花顺（推荐）：根据当前证券代码，从同花顺公开行情接口获取 K 线。示例：https://stockpage.10jqka.com.cn/600519/
-> - TradingView（兼容）：只读解析当前页面已有 WebSocket 行情，不修改网站连接；可用性取决于页面已经推送的数据。
+> - Binance (recommended): requests public candlestick data for the current trading pair from Binance's public market-data endpoint. Example: https://www.binance.com/en/trade/BTC_USDT?type=spot
+> - Tonghuashun (recommended): requests public candlestick data for the current stock code from Tonghuashun's market-data endpoint. Example: https://stockpage.10jqka.com.cn/600519/
+> - TradingView (compatibility): read-only parses market data already streamed to the current page. Availability depends on the data present in the active chart.
 >
-> 使用步骤：打开上述示例或其他受支持行情页并刷新，点击 K Line Analyzer 图标，选择“打开侧边分析面板”，再点击“开始分析”。
+> To use the extension, open and refresh a supported market page, click the K Line Analyzer toolbar icon, choose Open Side Panel, and select Start Analysis.
 >
-> 扩展不读取 Cookie、Token、登录凭证、交易账户、订单或支付信息，不包含广告、遥测和远程代码。用户设置保存在 Chrome Storage 中。
+> The extension does not read cookies, authentication tokens, login credentials, trading accounts, positions, orders, or payment information. It contains no advertising, telemetry, or remote code. User settings remain in `chrome.storage.local`.
 >
-> 分析结果仅供技术研究，不构成投资建议，不保证准确率或收益。K Line Analyzer 与 Binance、TradingView、同花顺不存在隶属或背书关系。
+> Results are for technical research only. They are not investment advice and do not guarantee accuracy or returns. K Line Analyzer is not affiliated with or endorsed by Binance, TradingView, or Tonghuashun.
 
-不要添加“AI 股票神器”“自动预测涨跌”“提高胜率”“稳赚”“赚钱工具”等无法证实或容易误导的表述。
+Do not add unsubstantiated or misleading claims such as “AI stock oracle,” “automatic price prediction,” “guaranteed win rate,” or “guaranteed profit.”
 
-## 权限说明
+## Permissions
 
-| 权限或域名                          | 对用户可见功能                                       | 必要性                                         |
-| ----------------------------------- | ---------------------------------------------------- | ---------------------------------------------- |
-| `storage`                           | 保存分析周期、K 线数量和策略设置                     | 仅使用 `chrome.storage.local`，不使用同步存储  |
-| `activeTab`                         | 用户打开分析面板后识别当前活动行情标签页             | 将分析请求和结果绑定到用户当前标签页           |
-| `sidePanel`                         | 在行情页旁显示分析台                                 | 产品的唯一界面宿主                             |
-| `https://www.binance.com/*`         | 识别当前 Binance 交易页并接收页面行情上下文          | 仅在明确支持的 Binance 页面运行 Content Script |
-| `https://*.tradingview.com/*`       | 只读解析当前 TradingView 页面已有 WebSocket K 线消息 | TradingView 没有由扩展发起的行情请求           |
-| `https://stockpage.10jqka.com.cn/*` | 识别当前同花顺证券页                                 | 仅在明确支持的同花顺页面运行 Content Script    |
-| `https://data-api.binance.vision/*` | 用户开始分析时获取对应交易对的公开 K 线              | 请求使用 `credentials: "omit"`                 |
-| `https://d.10jqka.com.cn/*`         | 用户开始分析时获取对应证券的公开 K 线                | 请求使用 `credentials: "omit"`                 |
+| Permission or origin                | User-facing function                                                               | Why it is required                                                      |
+| ----------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `storage`                           | Saves the analysis period and candle count                                         | Uses only `chrome.storage.local`; synchronization is not enabled        |
+| `activeTab`                         | Identifies the active supported market tab after the user opens the panel          | Binds each request and result to the user's current tab                 |
+| `sidePanel`                         | Displays the analysis workbench beside the market page                             | The Side Panel is the primary extension interface                       |
+| `https://www.binance.com/*`         | Recognizes the current Binance market page and receives page context               | Runs only on explicitly supported Binance pages                         |
+| `https://*.tradingview.com/*`       | Read-only observes market messages already streamed to the current chart           | The extension does not create an active TradingView market-data request |
+| `https://stockpage.10jqka.com.cn/*` | Recognizes the current Tonghuashun stock page                                      | Runs only on explicitly supported Tonghuashun pages                     |
+| `https://data-api.binance.vision/*` | Requests public candles for the current Binance pair when the user starts analysis | Requests use `credentials: "omit"`                                      |
+| `https://d.10jqka.com.cn/*`         | Requests public candles for the current Tonghuashun stock code                     | Requests use `credentials: "omit"`                                      |
 
-生产 Manifest 不包含 `localhost`、`127.0.0.1`、`<all_urls>`、Cookie、History、Web Request 或远程代码权限。
+The production Manifest does not contain `localhost`, `127.0.0.1`, `<all_urls>`, Cookie, History, Web Request, or remote-code permissions.
 
-## Privacy practices 数据披露
+## Privacy Practices Disclosure
 
-Dashboard 的具体字段名称可能随界面更新而变化，含义应按以下口径填写。
+Dashboard labels can change. Complete the current fields using the following behavior-based disclosure.
 
-### 应披露的数据类型
+### Data types to disclose
 
-1. **Website content / 网站内容**：当前受支持行情页面或行情响应中的公开市场标的、OHLCV 和成交量数据，仅用于生成用户请求的本地分析。
-2. **Web browsing activity / 浏览活动**：当前受支持页面的域名、URL 和标题，仅用于识别站点、标的和正确的活动标签页。扩展不读取完整浏览历史，也不在不支持的页面运行。
-3. **User settings / 用户设置**（若 Dashboard 提供对应选项）：分析周期、K 线数量和策略设置，仅保存在 `chrome.storage.local`。
+1. **Website content:** the public market symbol, OHLCV, and volume data from the supported page or market response, used only to generate the local analysis requested by the user.
+2. **Web browsing activity:** the domain, URL, and title of the current supported page, used only to identify the site, symbol, and correct active tab. The extension does not read general browsing history and does not run on unsupported pages.
+3. **User settings**, if the Dashboard provides that category: analysis period and candle count, stored only in `chrome.storage.local`.
 
-不要勾选个人身份信息、精确位置、认证信息、个人通信、交易账户/订单或支付信息；当前代码不处理这些数据。公开市场行情不是用户的交易账户或支付信息。
+Do not select personally identifiable information, precise location, authentication information, personal communications, trading accounts/orders, or payment information. The current code does not process these categories.
 
-### 数据用途
+### Data use
 
-- 只用于扩展公开声明的单一用途：在支持的行情页提供本地量价与 Wyckoff 分析。
-- 行情、页面上下文和分析结果不上传至开发者服务器。
-- 不出售数据，不用于广告、信用评估、用户画像、通用市场研究或与产品目的无关的分析。
-- 不允许开发者人工读取用户的本地行情、浏览上下文或分析结果。
-- 用户设置只保存在 Chrome 本地存储，直到用户重置、清除扩展数据或卸载扩展。
-- 主动行情请求只直接发送到 Binance 和同花顺的公开 HTTPS 行情服务，且不携带 Cookie 或登录凭证。
+- Data is used only for the disclosed single purpose of providing local market analysis on supported pages.
+- Market data, page context, and analysis results are not uploaded to a developer server.
+- Data is not sold or used for advertising, credit assessment, user profiling, or unrelated analytics.
+- Developers cannot manually read a user's local market data, browsing context, settings, or results.
+- User settings remain in local Chrome storage until reset, extension data is cleared, or the extension is uninstalled.
+- Active market requests go directly to the declared Binance or Tonghuashun HTTPS endpoints without cookies or login credentials.
 
 ### Limited Use certification
 
-可确认以下声明：
+The following statements can be confirmed:
 
-- 数据使用仅限于提供或改进扩展公开声明的单一用途。
-- 不将用户数据出售或转移给广告平台、数据经纪商或信息转售商。
-- 不将用户数据用于个性化广告或信用评估。
-- 不允许人工读取用户数据，适用政策明确允许的例外除外。
-- 隐私政策包含 Chrome Web Store User Data Policy 和 Limited Use 的遵守声明。
+- Data use is limited to providing or improving the extension's disclosed single purpose.
+- User data is not sold or transferred to advertising platforms, data brokers, or information resellers.
+- User data is not used for personalized advertising or creditworthiness assessment.
+- Human access is prohibited except for cases explicitly allowed by applicable policy.
+- The privacy policy includes compliance with the Chrome Web Store User Data Policy and Limited Use requirements.
 
-### 隐私政策 URL
-
-仓库发布到默认分支后填写：
+### Privacy policy URL
 
 > https://github.com/LanShiLiang/Chrome_K_line_analyzer/blob/master/PRIVACY.md
 
-提交前用无登录浏览器窗口确认该 URL 可公开访问、内容与上传版本一致。
+Before submission, confirm in a signed-out browser that the URL is public and matches the uploaded version.
 
-## 商店素材
+## Localized Store Assets
 
-| 文件                                                 |     尺寸 | 用途                         |
-| ---------------------------------------------------- | -------: | ---------------------------- |
-| `assets/icons/icon128.png`                           |  128×128 | ZIP 内扩展图标和商店图标     |
-| `store-assets/promo-small-440x280.png`               |  440×280 | 必填小型宣传图               |
-| `store-assets/screenshot-1-analysis-1280x800.png`    | 1280×800 | 实际行情页旁的分析结果       |
-| `store-assets/screenshot-2-settings-1280x800.png`    | 1280×800 | 参数调整与本地处理定位       |
-| `store-assets/screenshot-3-tonghuashun-1280x800.png` | 1280×800 | 同花顺个股分析与红涨绿跌配色 |
+| Locale                       | Description                  | Screenshots           |
+| ---------------------------- | ---------------------------- | --------------------- |
+| English default              | This document                | `store-assets/en/`    |
+| Simplified Chinese (`zh_CN`) | `WEB_STORE_LISTING.zh-CN.md` | `store-assets/zh-CN/` |
 
-商店截图由真实 Binance 与同花顺 Side Panel E2E 产物合成，不应在代码行为变化后长期复用。运行 `npm.cmd run assets:store` 可重新执行两个真实站点 E2E 并生成素材。
+Use the global text-free small promotional tile at `store-assets/promo-small-440x280.png` for both locales.
 
-## 提交前核对
+## Submission Checklist
 
-- 运行 `npm.cmd run package`，确认全部单元测试、类型检查、构建审计以及真实 Binance、同花顺 E2E 通过。
-- 解压 `release/k-line-analyzer-0.1.1.zip`，确认根目录 `manifest.json` 与 `manifest.prod.json` 一致。
-- 搜索 ZIP 内容，确认没有 `localhost`、`127.0.0.1`、源代码、Source Map、测试文件或商店宣传素材。
-- 确认 ZIP 内包含 16、32、48、128 px PNG 图标，Manifest 的 `icons` 和 `action.default_icon` 均可解析。
-- 上传三张 1280×800 最新主题截图、128×128 图标和 440×280 小型宣传图；确认其中包含 Binance 与同花顺实际使用场景。
-- 逐字核对商店说明、Privacy practices、隐私政策与实际行为，避免相互矛盾。
-- 在 single purpose 字段中填写本文的单一用途，不承诺预测准确率、胜率或收益。
-- 提供可用的支持渠道，并确认开发者账号联系邮箱可正常收信。
+- [ ] The English and Simplified Chinese listings describe the same features and limitations.
+- [ ] The production ZIP passes the complete package gate.
+- [ ] English and Simplified Chinese locale E2E pass in real Chrome Side Panels.
+- [ ] Binance and Tonghuashun active market-data paths pass real-site E2E.
+- [ ] TradingView remains passive-only and its settings remain locked.
+- [ ] English screenshots contain only the English UI; Chinese screenshots contain the Simplified Chinese UI.
+- [ ] Internal state keywords such as `BUY` and `MARKUP` are not exposed directly as localized UI labels.
+- [ ] The privacy policy and Dashboard disclosures match actual code behavior.
+- [ ] The listing contains no keyword spam, affiliation claim, automated-trading claim, or return promise.

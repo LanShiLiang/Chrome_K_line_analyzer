@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "K Line Analyzer",
+  "default_locale": "en",
+  "name": "__MSG_extension_name__",
   "version": "0.1.1",
-  "description": "在 Binance 和同花顺行情页旁，本地完成 K 线量价与维科夫分析",
+  "description": "__MSG_extension_description__",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -11,7 +12,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "K Line Analyzer",
+    "default_title": "__MSG_action_title__",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"

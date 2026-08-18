@@ -10,6 +10,7 @@ import {
 import type { MarketData, SelectionRange, UserConfig } from '../core/model/types';
 import { isRawMarketPayload } from '../shared/guards';
 import { createMessage, type ExtensionMessage } from '../shared/messages';
+import { message as localizedMessage } from '../shared/i18n-types';
 import { selectBestPassiveMarketData } from './market';
 import { createSession, resolveSessionTabId, updateSessionPage, type Session } from './session';
 
@@ -26,7 +27,11 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
   if (tabId === undefined) {
     sendResponse({
       ok: false,
-      error: { code: 'E_TAB_REQUIRED', message: '缺少 Tab 上下文', recoverable: true },
+      error: {
+        code: 'E_TAB_REQUIRED',
+        message: localizedMessage('error_tab_required'),
+        recoverable: true,
+      },
     });
     return;
   }
@@ -88,11 +93,14 @@ async function getAuthoritativePage(tabId: number, current: Session, requestedUr
   }
   const pageUrl = tabUrl ?? requestedUrl ?? current.page?.url;
   if (!pageUrl)
-    throw new AnalysisInputError('E_PAGE_CONTEXT_MISSING', '无法确认当前行情页面，请刷新后重试');
+    throw new AnalysisInputError(
+      'E_PAGE_CONTEXT_MISSING',
+      localizedMessage('error_page_context_missing'),
+    );
   if (tabUrl && requestedUrl && !isSameMarketPage(tabUrl, requestedUrl))
     throw new AnalysisInputError(
       'E_PAGE_CONTEXT_CHANGED',
-      '当前标签页已经切换，请等待页面状态同步后重新分析',
+      localizedMessage('error_page_context_changed'),
     );
   updateSessionPage(current, { url: pageUrl, title: tabTitle });
   return pageUrl;
@@ -111,14 +119,14 @@ async function assertPageStillActive(
   )
     throw new AnalysisInputError(
       'E_PAGE_CONTEXT_CHANGED',
-      '分析期间行情页面已切换，本次旧页面结果已丢弃',
+      localizedMessage('error_page_context_changed_during_analysis'),
     );
   try {
     const tab = await chrome.tabs.get(tabId);
     if (tab.url && !isSameMarketPage(tab.url, pageUrl))
       throw new AnalysisInputError(
         'E_PAGE_CONTEXT_CHANGED',
-        '分析期间行情页面已切换，本次旧页面结果已丢弃',
+        localizedMessage('error_page_context_changed_during_analysis'),
       );
   } catch (error) {
     if (error instanceof AnalysisInputError) throw error;
@@ -152,7 +160,7 @@ async function runAnalysis(
     if (!normalized) {
       normalized = selectBestPassiveMarketData(current.candidates, site, pageUrl);
       if (activeError)
-        normalized?.quality.warnings.unshift('主动行情请求失败，本次已回退到页面被动捕获的数据');
+        normalized?.quality.warnings.unshift(localizedMessage('warning_active_request_fallback'));
     }
 
     if (!normalized) {
@@ -160,8 +168,8 @@ async function runAnalysis(
       throw new AnalysisInputError(
         'E_MARKET_DATA_NOT_FOUND',
         site === 'tradingview'
-          ? '尚未被动捕获到 TradingView 行情，请等待图表加载或切换周期后重试'
-          : '未获取到行情数据，请确认当前页面标的后重试',
+          ? localizedMessage('error_market_data_tradingview_not_found')
+          : localizedMessage('error_market_data_not_found'),
       );
     }
 
@@ -188,12 +196,12 @@ async function runAnalysis(
     };
   } catch (error) {
     const known = error instanceof AnalysisInputError || error instanceof ActiveMarketDataError;
-    console.error('K 线分析失败', error);
+    console.error('K-line analysis failed', error);
     return {
       ok: false,
       error: {
         code: known ? error.code : 'E_ANALYSIS_FAILED',
-        message: known ? error.message : '分析计算失败，请检查策略参数或刷新行情页面后重试',
+        message: known ? error.userMessage : localizedMessage('error_analysis_failed'),
         recoverable: true,
       },
     };

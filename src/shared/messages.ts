@@ -1,4 +1,6 @@
 // 所有跨 Popup、Drawer、Content 和 Worker 的消息共享同一信封与 traceId。
+import type { LocalizedMessage } from './i18n-types';
+
 export type MessageType =
   | 'PAGE_DETECTED'
   | 'START_SELECTION'
@@ -9,7 +11,7 @@ export type MessageType =
   | 'GET_STATE';
 export type ExtensionError = {
   code: string;
-  message: string;
+  message: LocalizedMessage;
   detail?: unknown;
   recoverable: boolean;
 };

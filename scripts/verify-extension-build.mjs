@@ -76,6 +76,52 @@ const extractReferences = (source, file) => {
 };
 
 const localDevelopmentPattern = /(?:localhost|127\.0\.0\.1)/i;
+const supportedLocales = ['en', 'zh_CN'];
+
+const placeholderNames = (entry) => Object.keys(entry?.placeholders ?? {}).sort();
+
+const validateLocales = async (dist, files, manifest) => {
+  if (manifest.default_locale !== 'en')
+    throw new Error(`Extension default_locale must be en, received ${manifest.default_locale}`);
+
+  const expectedFiles = supportedLocales.map((locale) => `_locales/${locale}/messages.json`);
+  const actualFiles = files.filter((file) => file.startsWith('_locales/'));
+  if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles))
+    throw new Error(
+      `Extension locales must be exactly ${expectedFiles.join(', ')}; received ${actualFiles.join(', ')}`,
+    );
+
+  const catalogs = Object.fromEntries(
+    await Promise.all(
+      supportedLocales.map(async (locale) => [
+        locale,
+        JSON.parse(await readFile(resolve(dist, `_locales/${locale}/messages.json`), 'utf8')),
+      ]),
+    ),
+  );
+  const englishKeys = Object.keys(catalogs.en).sort();
+  for (const locale of supportedLocales) {
+    const catalog = catalogs[locale];
+    const keys = Object.keys(catalog).sort();
+    if (JSON.stringify(keys) !== JSON.stringify(englishKeys))
+      throw new Error(`${locale} locale keys do not match the default English catalog`);
+    for (const key of keys) {
+      if (typeof catalog[key]?.message !== 'string' || !catalog[key].message.trim())
+        throw new Error(`${locale} locale contains an empty or invalid message: ${key}`);
+      if (
+        JSON.stringify(placeholderNames(catalog[key])) !==
+        JSON.stringify(placeholderNames(catalogs.en[key]))
+      )
+        throw new Error(`${locale} locale placeholders do not match English for ${key}`);
+    }
+  }
+
+  for (const match of JSON.stringify(manifest).matchAll(/__MSG_([A-Za-z0-9_@]+)__/g)) {
+    if (!catalogs.en[match[1]])
+      throw new Error(`Manifest references a missing localization message: ${match[1]}`);
+  }
+  return expectedFiles;
+};
 
 export const verifyExtensionBuild = async (
   directory = resolve('dist'),
@@ -109,6 +155,7 @@ export const verifyExtensionBuild = async (
       `Manifest version ${manifest.version} does not match package version ${packageJson.version}`,
     );
   }
+  const localeFiles = await validateLocales(dist, files, manifest);
 
   // Manifest Content Script 以 classic script 运行，必须阻止残留 ESM 语法进入 dist。
   const classicScripts = new Set(
@@ -129,7 +176,7 @@ export const verifyExtensionBuild = async (
   }
 
   // 从 Manifest 根入口递归遍历 HTML、CSS 和模块引用；未被引用的文件视为陈旧垃圾。
-  const reachable = new Set(['manifest.json']);
+  const reachable = new Set(['manifest.json', ...localeFiles]);
   addManifestFiles(manifest, reachable);
   const queue = [...reachable];
   while (queue.length) {

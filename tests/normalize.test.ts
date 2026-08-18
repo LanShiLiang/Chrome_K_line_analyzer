@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assessQuality, createMarketData, normalizeCandles } from '../src/core/adapter/normalize';
+import { message } from '../src/shared/i18n-types';
 
 // 适配器测试锁定排序、去重、字段兼容和数据质量判定契约。
 describe('normalizeCandles', () => {
@@ -54,7 +55,7 @@ describe('normalizeCandles', () => {
       1,
     );
     expect(data.candles).toHaveLength(1);
-    expect(data.quality.warnings).toContain('已忽略 2 条无效或重复的 K 线数据');
+    expect(data.quality.warnings).toContainEqual(message('warning_ignored_candles', [2]));
   });
 });
 
@@ -72,8 +73,8 @@ describe('assessQuality', () => {
     expect(quality.valid).toBe(false);
     expect(quality.warnings).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('数据不足'),
-        expect.stringContaining('成交量缺失'),
+        message('warning_insufficient_data', [20]),
+        message('warning_missing_volume'),
       ]),
     );
   });

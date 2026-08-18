@@ -27,8 +27,33 @@ if (!profile)
   throw new Error(
     `未知 E2E 站点：${profileName}；可选值为 ${Object.keys(E2E_PROFILES).join('、')}`,
   );
+const localeName = process.argv[3] ?? 'en-US';
+const E2E_LOCALES = {
+  'en-US': {
+    language: 'en',
+    popupTitle: 'Volume-Price Analyzer',
+    popupButton: 'Open Side Panel',
+    drawerTitle: 'Volume-Price Workbench',
+    evidenceTitle: 'Analysis Evidence',
+  },
+  'zh-CN': {
+    language: 'zh',
+    popupTitle: '量价分析器',
+    popupButton: '打开侧边分析面板',
+    drawerTitle: '量价分析台',
+    evidenceTitle: '分析依据',
+  },
+};
+const locale = E2E_LOCALES[localeName];
+if (!locale)
+  throw new Error(
+    `Unknown E2E locale: ${localeName}. Expected ${Object.keys(E2E_LOCALES).join(', ')}`,
+  );
+const localeSlug = localeName.toLowerCase();
 const extensionPath = resolve('dist');
 const resultsPath = resolve('test-results');
+const resultPath = (suffix) =>
+  resolve(resultsPath, `${profile.screenshotPrefix}-${localeSlug}-${suffix}.png`);
 const profilePath = await mkdtemp(join(tmpdir(), `kla-${profileName}-e2e-`));
 
 const existingPath = async (...paths) => {
@@ -138,15 +163,15 @@ const createTargetClient = async (cdp, targetId) => {
 };
 
 const renderedAnalysisExpression = (expectedCandles) => `(() => {
-  const body = document.body.innerText;
   const error = document.querySelector('.error')?.textContent ?? '';
-  if (error.includes('当前标签页') || error.includes('旧页面数据')) return false;
   const chart = document.querySelector('.market-chart');
-  const evidenceSection = [...document.querySelectorAll('section')].find(
-    (section) => section.querySelector('h2')?.textContent?.trim() === '分析依据'
-  );
+  const evidenceHeading = document.querySelector('[data-testid="analysis-evidence-heading"]');
+  const evidenceSection = evidenceHeading?.closest('section');
   const rationale = evidenceSection?.querySelectorAll('article, .warning') ?? [];
   const signalValues = document.querySelectorAll('.signal strong');
+  const action = document.querySelector('[data-testid="analysis-action"]')?.textContent?.trim();
+  const stage = document.querySelector('[data-testid="analysis-stage"]')?.textContent?.trim();
+  const internalKeywords = ['BUY', 'SELL', 'HOLD', 'RISK', 'ACCUMULATION', 'SPRING_TEST', 'MARKUP', 'DISTRIBUTION', 'MARKDOWN', 'UNKNOWN'];
   const canvases = [...(chart?.querySelectorAll('canvas') ?? [])];
   const canvasColorCounts = canvases.map((canvas) => {
     const context = canvas.getContext('2d');
@@ -172,18 +197,21 @@ const renderedAnalysisExpression = (expectedCandles) => `(() => {
     signalValues: [...signalValues].map((value) => value.textContent?.trim()),
     rationaleCount: rationale.length,
     canvasColorCounts,
-    hasRequiredLabels: ['策略结论', '阶段', '置信度', '分析依据'].every((label) => body.includes(label)),
+    evidenceHeading: evidenceHeading?.textContent?.trim(),
+    action,
+    stage,
+    hasLocalizedValues: Boolean(action && stage) && !internalKeywords.includes(action) && !internalKeywords.includes(stage),
     error
   };
   globalThis.__klaE2EWaitDiagnostics = diagnostics;
-  return diagnostics.hasRequiredLabels &&
+  return diagnostics.evidenceHeading === ${JSON.stringify(locale.evidenceTitle)} &&
+    diagnostics.hasLocalizedValues &&
     diagnostics.renderedCandles === diagnostics.expectedCandles &&
     diagnostics.signalValues.length === 3 &&
     diagnostics.signalValues.every(Boolean) &&
     diagnostics.rationaleCount > 0 &&
     diagnostics.canvasColorCounts.some((count) => count >= 3) &&
-    !error.includes('当前标签页') &&
-    !error.includes('旧页面数据');
+    !error;
 })()`;
 
 const responsiveLayoutExpression = `(() => {
@@ -237,6 +265,7 @@ try {
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
+      `--lang=${localeName}`,
       '--no-first-run',
       '--disable-default-apps',
     ],
@@ -273,8 +302,20 @@ try {
   }));
   if (popupLayout.bodyWidth !== 420 || popupLayout.shellWidth !== 420)
     throw new Error(`Popup 宽度异常：${JSON.stringify(popupLayout)}`);
-  await popupPage.screenshot({ path: resolve(resultsPath, 'popup-blue-theme.png'), type: 'png' });
-  await popupPage.getByRole('button', { name: '打开侧边分析面板' }).click();
+  const actualLocale = await popupPage.evaluate(() => chrome.i18n.getUILanguage());
+  if (!actualLocale.toLowerCase().startsWith(locale.language))
+    throw new Error(`Chrome UI locale mismatch: expected ${localeName}, received ${actualLocale}`);
+  const popupTitle = (await popupPage.locator('h1').textContent())?.trim();
+  if (popupTitle !== locale.popupTitle)
+    throw new Error(`Popup locale mismatch: expected ${locale.popupTitle}, received ${popupTitle}`);
+  await popupPage.screenshot({
+    path: resolve(resultsPath, `popup-${localeSlug}-blue-theme.png`),
+    type: 'png',
+  });
+  const openPanelButton = popupPage.locator('[data-testid="open-side-panel"]');
+  if ((await openPanelButton.textContent())?.trim() !== locale.popupButton)
+    throw new Error(`Popup action is not localized for ${localeName}`);
+  await openPanelButton.click();
   await marketPage.waitForTimeout(500);
 
   const cdp = await context.newCDPSession(marketPage);
@@ -299,9 +340,16 @@ try {
     mobile: false,
   });
   await sidePanel.waitFor(
-    `document.body.innerText.includes(${JSON.stringify(`已识别${profile.label === 'Binance' ? ' Binance' : profile.label}`)})`,
-    `Side Panel 识别 ${profile.label}`,
+    `document.querySelector('[data-testid="market-status"]')?.getAttribute('data-site') === ${JSON.stringify(profileName)}`,
+    `Side Panel recognizes ${profile.label}`,
   );
+  const localizedDrawerTitle = await sidePanel.evaluate(
+    `document.querySelector('h1')?.textContent?.trim()`,
+  );
+  if (localizedDrawerTitle !== locale.drawerTitle)
+    throw new Error(
+      `Side Panel locale mismatch: expected ${locale.drawerTitle}, received ${localizedDrawerTitle}`,
+    );
 
   // 旁路记录真实 Side Panel 的消息，并制造同一交易页的无害 URL 快照差异。
   await sidePanel.evaluate(`(() => {
@@ -326,9 +374,7 @@ try {
   })()`);
 
   await sidePanel.evaluate(`(() => {
-    const button = [...document.querySelectorAll('button')].find((item) =>
-      item.textContent?.trim() === '开始分析'
-    );
+    const button = document.querySelector('[data-testid="run-analysis"]');
     if (!(button instanceof HTMLButtonElement) || button.disabled)
       throw new Error('真实 Side Panel 的开始分析按钮不可用');
     button.click();
@@ -360,9 +406,7 @@ try {
     mobile: false,
   });
   await sidePanel.waitFor(responsiveLayoutExpression, 'Side Panel 缩窄后的响应式布局');
-  await sidePanel.screenshot(
-    resolve(resultsPath, `${profile.screenshotPrefix}-responsive-300px.png`),
-  );
+  await sidePanel.screenshot(resultPath('responsive-300px'));
   await sidePanel.send('Emulation.setDeviceMetricsOverride', {
     width: 80,
     height: 1000,
@@ -370,9 +414,7 @@ try {
     mobile: false,
   });
   await sidePanel.waitFor(collapsedLayoutExpression, 'Side Panel 极窄折叠状态');
-  await sidePanel.screenshot(
-    resolve(resultsPath, `${profile.screenshotPrefix}-collapsed-80px.png`),
-  );
+  await sidePanel.screenshot(resultPath('collapsed-80px'));
   await sidePanel.send('Emulation.setDeviceMetricsOverride', {
     width: 480,
     height: 1000,
@@ -380,9 +422,9 @@ try {
     mobile: false,
   });
   await sidePanel.waitFor(responsiveLayoutExpression, 'Side Panel 恢复宽度后的响应式布局');
-  await sidePanel.screenshot(resolve(resultsPath, `${profile.screenshotPrefix}-200-candles.png`));
+  await sidePanel.screenshot(resultPath('200-candles'));
   await marketPage.screenshot({
-    path: resolve(resultsPath, `${profile.screenshotPrefix}-market-page.png`),
+    path: resultPath('market-page'),
     type: 'png',
   });
 
@@ -400,10 +442,10 @@ try {
     throw new Error('修改后的分析 K 线数量未传入后台');
   if (secondTrace?.response?.data?.marketData?.candles?.length !== 64)
     throw new Error('策略参数变更后后台没有返回 64 根 K 线');
-  await sidePanel.screenshot(resolve(resultsPath, `${profile.screenshotPrefix}-64-candles.png`));
+  await sidePanel.screenshot(resultPath('64-candles'));
 
   await sidePanel.evaluate(`(() => {
-    const button = document.querySelector('button[aria-label="重置分析台"]');
+    const button = document.querySelector('[data-testid="reset-analyzer"]');
     if (!(button instanceof HTMLButtonElement)) throw new Error('未找到重置分析台按钮');
     button.click();
     return true;
@@ -411,7 +453,7 @@ try {
   await sidePanel.waitFor(
     `(() => {
       const input = document.querySelector('input[type="number"]');
-      return document.body.innerText.includes('等待分析') &&
+      return document.querySelector('[data-testid="analysis-empty"]') &&
         input instanceof HTMLInputElement &&
         input.value === '200' &&
         !document.querySelector('.market-chart') &&
@@ -419,13 +461,10 @@ try {
     })()`,
     '重置分析台',
   );
-  await sidePanel.screenshot(resolve(resultsPath, `${profile.screenshotPrefix}-reset.png`));
+  await sidePanel.screenshot(resultPath('reset'));
   console.log(`${profile.label} real Side Panel E2E passed: ${profile.url}`);
 } catch (error) {
-  if (sidePanel)
-    await sidePanel
-      .screenshot(resolve(resultsPath, `${profile.screenshotPrefix}-e2e-failure.png`))
-      .catch(() => undefined);
+  if (sidePanel) await sidePanel.screenshot(resultPath('e2e-failure')).catch(() => undefined);
   throw error;
 } finally {
   await context?.close().catch(() => undefined);

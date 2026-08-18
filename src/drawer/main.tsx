@@ -17,6 +17,8 @@ import {
 } from 'lightweight-charts';
 import { createMessage } from '../shared/messages';
 import type { ExtensionMessage } from '../shared/messages';
+import { localizeDocument, t, translateMessage } from '../shared/i18n';
+import type { MessageKey } from '../shared/i18n-types';
 import { detectMarketSite, isSameMarketPage, type MarketSite } from '../core/adapter/sites';
 import {
   getAnalysisConfigError,
@@ -34,10 +36,17 @@ import {
 } from '../core/model/types';
 import { hasConflictingPage, isSameTabContext, resetTabScopedState, useDrawerStore } from './store';
 import { getMarketColorTheme } from './market-colors';
+import {
+  ACTION_MESSAGE_KEYS,
+  EVIDENCE_MESSAGE_KEYS,
+  SITE_MESSAGE_KEYS,
+  STAGE_MESSAGE_KEYS,
+} from './presentation';
 import './styles.css';
 
 const extensionReady = () =>
   location.protocol === 'chrome-extension:' && typeof chrome !== 'undefined';
+if (extensionReady()) localizeDocument();
 type ActiveTabContext = {
   tabId: number;
   page?: { url: string; title: string };
@@ -45,17 +54,21 @@ type ActiveTabContext = {
 
 // Drawer 始终以当前活动标签页作为查询和分析上下文，失败时抛出可展示的用户错误。
 async function getActiveTabContext(): Promise<ActiveTabContext> {
-  if (!extensionReady()) throw new Error('当前环境无法连接 Chrome 扩展服务');
+  if (!extensionReady()) throw new Error(t('error_extension_unavailable'));
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id === undefined) throw new Error('未找到可分析的活动标签页');
+  if (tab?.id === undefined) throw new Error(t('error_analyzable_tab_not_found'));
   return {
     tabId: tab.id,
     page: tab.url ? { url: tab.url, title: tab.title ?? '' } : undefined,
   };
 }
 
-const errorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error && error.message ? error.message : fallback;
+const errorMessage = (error: unknown, fallback: MessageKey) =>
+  error instanceof Error && error.message ? error.message : t(fallback);
+
+const responseError = (response: {
+  error?: { message?: Parameters<typeof translateMessage>[0] };
+}) => (response.error?.message ? translateMessage(response.error.message) : undefined);
 
 const candidatesForSite = (candidates: RawMarketPayload[], url?: string) => {
   const site = detectMarketSite(url);
@@ -106,7 +119,7 @@ function App() {
         ...createMessage('GET_STATE', 'drawer', context.page),
         tabId: context.tabId,
       });
-      if (!response?.ok) throw new Error(response?.error?.message ?? '刷新页面状态失败');
+      if (!response?.ok) throw new Error(responseError(response) ?? t('error_refresh_page_state'));
       const confirmed = await getActiveTabContext();
       if (
         requestId !== syncSequence.current ||
@@ -141,7 +154,7 @@ function App() {
       if (requestId === syncSequence.current)
         useDrawerStore
           .getState()
-          .set({ syncing: false, error: errorMessage(error, '同步当前标签页失败') });
+          .set({ syncing: false, error: errorMessage(error, 'error_sync_tab') });
       return false;
     }
   }, []);
@@ -155,7 +168,7 @@ function App() {
         return;
       }
     } catch (error) {
-      console.warn('无法通过 Side Panel API 关闭分析面板，将使用页面关闭兜底。', error);
+      console.warn('Unable to close the analysis panel through the Side Panel API.', error);
     }
     window.close();
   };
@@ -188,12 +201,15 @@ function App() {
         const values = await chrome.storage.local.get('kla:userConfig');
         const saved = values['kla:userConfig'] as Partial<UserConfig> | undefined;
         const config = loadStoredUserConfig(saved);
-        useDrawerStore.getState().set({ config, error: getAnalysisConfigError(config) });
+        const configError = getAnalysisConfigError(config);
+        useDrawerStore
+          .getState()
+          .set({ config, error: configError ? translateMessage(configError) : undefined });
         await syncActiveTab();
       } catch (error) {
         useDrawerStore
           .getState()
-          .set({ syncing: false, error: errorMessage(error, '初始化页面状态失败') });
+          .set({ syncing: false, error: errorMessage(error, 'error_initialize_page') });
       }
     })();
     const messageListener = (m: ExtensionMessage, sender: chrome.runtime.MessageSender) => {
@@ -247,7 +263,7 @@ function App() {
       await chrome.tabs.sendMessage(tabId, createMessage('START_SELECTION', 'drawer'));
       s.set({ error: undefined });
     } catch (error) {
-      s.set({ error: errorMessage(error, '无法启动 K 线框选') });
+      s.set({ error: errorMessage(error, 'error_start_selection') });
     }
   };
   const analyze = async (config = s.config, showBusy = true) => {
@@ -262,11 +278,11 @@ function App() {
       }
       const page = observedPage ?? current.page;
       if (!isSameTabContext(current, tabId, observedPage) || current.syncing || !page?.url)
-        throw new Error('当前标签页正在切换，请稍后重新分析');
+        throw new Error(t('error_tab_switching'));
       const requestSite = detectMarketSite(page?.url);
       const requestConfig = resolveUserConfigForSite(requestSite, config);
       const configError = getAnalysisConfigError(requestConfig);
-      if (configError) throw new Error(configError);
+      if (configError) throw new Error(translateMessage(configError));
       if (showBusy) current.set({ busy: true, error: undefined });
       if (
         requestConfig.analysisPeriod !== current.config.analysisPeriod ||
@@ -290,7 +306,7 @@ function App() {
           response.data?.context?.tabId !== tabId ||
           !isSameMarketPage(response.data?.context?.pageUrl, page?.url)
         )
-          throw new Error('分析结果与当前标签页不一致，已阻止展示旧页面数据');
+          throw new Error(t('error_result_context_changed'));
         current.set({
           busy: false,
           error: undefined,
@@ -303,7 +319,7 @@ function App() {
       }
       current.set({
         busy: false,
-        error: response?.error?.message ?? '分析失败，请刷新行情页面后重试',
+        error: responseError(response) ?? t('error_analysis_retry'),
         marketData: undefined,
         result: undefined,
       });
@@ -311,7 +327,7 @@ function App() {
       if (requestSequence !== analysisSequence.current) return;
       useDrawerStore.getState().set({
         busy: false,
-        error: errorMessage(error, '无法连接分析服务'),
+        error: errorMessage(error, 'error_analysis_service'),
         marketData: undefined,
         result: undefined,
       });
@@ -329,7 +345,7 @@ function App() {
     s.set({
       config,
       busy: false,
-      error: configError,
+      error: configError ? translateMessage(configError) : undefined,
       ...(configError ? { marketData: undefined, result: undefined } : {}),
     });
     if (configError) return;
@@ -341,54 +357,70 @@ function App() {
       <header>
         <div>
           <span className="eyebrow">K LINE ANALYZER</span>
-          <h1>量价分析台</h1>
+          <h1>{t('drawer_title')}</h1>
         </div>
         <div className="header-actions">
           <button
             className="icon panel-toggle"
             type="button"
-            title="关闭分析面板"
-            aria-label="关闭分析面板"
+            title={t('drawer_close_panel')}
+            aria-label={t('drawer_close_panel')}
             onClick={closePanel}
           >
             <ToggleRight />
           </button>
           <button
             className="icon"
+            data-testid="reset-analyzer"
             type="button"
-            title="重置分析台"
-            aria-label="重置分析台"
+            title={t('drawer_reset_analyzer')}
+            aria-label={t('drawer_reset_analyzer')}
             onClick={() => void resetAnalyzer()}
           >
             <RotateCcw />
           </button>
         </div>
       </header>
-      <section className="status">
+      <section className="status" data-testid="market-status" data-site={site}>
         <span className={canAnalyze ? 'dot ok' : 'dot'} />
         <span>
           {s.syncing
-            ? '正在同步当前标签页行情上下文'
+            ? t('status_syncing')
             : supportsActiveRequest
-              ? `已识别${site === 'binance' ? ' Binance' : '同花顺'}，开始分析时主动获取行情`
+              ? t('status_active_site', [t(SITE_MESSAGE_KEYS[site] ?? 'site_binance')])
               : isTradingView
                 ? s.candidates.length
-                  ? `已被动捕获 ${s.candidates.length} 组 TradingView 行情`
-                  : '等待 TradingView 页面推送行情数据'
+                  ? t(
+                      s.candidates.length === 1
+                        ? 'status_tradingview_captured_one'
+                        : 'status_tradingview_captured_many',
+                      [s.candidates.length],
+                    )
+                  : t('status_tradingview_waiting')
                 : s.candidates.length
-                  ? `已被动捕获 ${s.candidates.length} 组行情`
-                  : '当前页面暂不支持主动获取行情'}
+                  ? t(
+                      s.candidates.length === 1
+                        ? 'status_passive_captured_one'
+                        : 'status_passive_captured_many',
+                      [s.candidates.length],
+                    )
+                  : t('status_active_unsupported')}
         </span>
       </section>
-      <p className="privacy-note">行情与分析结果不上传至开发者服务器。</p>
+      <p className="privacy-note">{t('drawer_privacy')}</p>
       <div className="actions">
-        <button disabled={s.syncing} onClick={() => void select()}>
+        <button data-testid="select-candles" disabled={s.syncing} onClick={() => void select()}>
           <MousePointer2 />
-          框选 K 线
+          {t('drawer_select_candles')}
         </button>
-        <button className="primary" disabled={s.busy || !canAnalyze} onClick={() => void analyze()}>
+        <button
+          className="primary"
+          data-testid="run-analysis"
+          disabled={s.busy || !canAnalyze}
+          onClick={() => void analyze()}
+        >
           <CandlestickChart />
-          {s.busy ? '分析中' : '开始分析'}
+          {s.busy ? t('drawer_analyzing') : t('drawer_start_analysis')}
         </button>
       </div>
       {s.error && (
@@ -410,10 +442,10 @@ function App() {
 function Result({ result, site }: { result?: WyckoffAnalysisResult; site: MarketSite }) {
   if (!result)
     return (
-      <section className="empty">
+      <section className="empty" data-testid="analysis-empty">
         <CandlestickChart />
-        <h2>等待分析</h2>
-        <p>刷新行情页面后框选目标区域，插件会从页面请求中识别 OHLCV 数据。</p>
+        <h2>{t('drawer_empty_title')}</h2>
+        <p>{t('drawer_empty_description')}</p>
       </section>
     );
   const colors = getMarketColorTheme(site);
@@ -425,29 +457,34 @@ function Result({ result, site }: { result?: WyckoffAnalysisResult; site: Market
     <>
       <section className={`signal ${result.signal.action.toLowerCase()}`} style={signalColorStyle}>
         <div>
-          <span>策略结论</span>
-          <strong>{result.signal.action}</strong>
+          <span>{t('drawer_strategy_conclusion')}</span>
+          <strong data-testid="analysis-action">
+            {t(ACTION_MESSAGE_KEYS[result.signal.action])}
+          </strong>
         </div>
         <div>
-          <span>阶段</span>
-          <strong>{result.stage}</strong>
+          <span>{t('drawer_stage')}</span>
+          <strong data-testid="analysis-stage">{t(STAGE_MESSAGE_KEYS[result.stage])}</strong>
         </div>
         <div>
-          <span>置信度</span>
-          <strong>{result.signal.confidence}</strong>
+          <span>{t('drawer_confidence')}</span>
+          <strong data-testid="analysis-confidence">{result.signal.confidence}</strong>
         </div>
       </section>
       <section>
-        <h2>分析依据</h2>
-        {result.evidence.map((e) => (
-          <article key={e.code}>
-            <b>{e.label}</b>
-            <p>{e.detail}</p>
-          </article>
-        ))}
+        <h2 data-testid="analysis-evidence-heading">{t('drawer_analysis_evidence')}</h2>
+        {result.evidence.map((e) => {
+          const messages = EVIDENCE_MESSAGE_KEYS[e.code];
+          return (
+            <article key={e.code} data-evidence-code={e.code}>
+              <b>{t(messages.label)}</b>
+              <p>{t(messages.detail)}</p>
+            </article>
+          );
+        })}
         {result.warnings.map((w) => (
-          <p className="warning" key={w}>
-            {w}
+          <p className="warning" key={`${w.key}-${w.substitutions?.join('-') ?? ''}`}>
+            {translateMessage(w)}
           </p>
         ))}
       </section>
@@ -508,13 +545,17 @@ function Chart({ data }: { data?: MarketData }) {
   }, [data]);
   return data ? (
     <section>
-      <h2>K线与成交量</h2>
+      <h2>{t('drawer_chart_title')}</h2>
       <p className="chart-summary">
-        {data.siteId === 'tradingview' ? '跟随当前 TradingView 图表，' : ''}
-        本次分析与图表均使用最近 {data.candles.length} 根 K 线
+        {t(
+          data.siteId === 'tradingview'
+            ? 'drawer_chart_summary_tradingview'
+            : 'drawer_chart_summary',
+          [data.candles.length],
+        )}
       </p>
       {!data.candles.some((c) => c.volume > 0) && (
-        <p className="warning">当前图表数据不含成交量，仅展示 K 线并降级为价格结构分析</p>
+        <p className="warning">{t('drawer_chart_no_volume')}</p>
       )}
       <div
         className="market-chart"
@@ -544,36 +585,34 @@ function Config({
     <details>
       <summary>
         <Settings />
-        策略参数
+        {t('drawer_strategy_parameters')}
       </summary>
       <div className={`config-body${disabled ? ' is-disabled' : ''}`}>
         <div className="config-heading">
-          <strong>策略设置</strong>
+          <strong>{t('drawer_strategy_settings')}</strong>
           <span>
-            {disabled
-              ? 'TradingView 跟随当前图表周期与实际捕获数据，当前页面不可修改'
-              : '分析和图表使用相同的 K 线数量，修改后立即应用并自动保存'}
+            {disabled ? t('drawer_settings_locked_tradingview') : t('drawer_settings_description')}
           </span>
         </div>
         {disabled ? (
-          <div className="chart-context-settings" aria-label="TradingView 当前图表分析规则">
+          <div className="chart-context-settings" aria-label={t('drawer_tradingview_rules')}>
             <div>
-              <span>行情周期</span>
-              <strong>{s.marketData?.period ?? '跟随当前图表'}</strong>
+              <span>{t('drawer_market_period')}</span>
+              <strong>{s.marketData?.period ?? t('drawer_follow_current_chart')}</strong>
             </div>
             <div>
-              <span>分析 K 线数量</span>
+              <span>{t('drawer_analysis_candle_count')}</span>
               <strong>
                 {capturedCandles
-                  ? `已捕获 ${Math.min(capturedCandles, MAX_ANALYSIS_CANDLES)} 根`
-                  : '等待图表数据'}
+                  ? t('drawer_captured_candles', [Math.min(capturedCandles, MAX_ANALYSIS_CANDLES)])
+                  : t('drawer_waiting_chart_data')}
               </strong>
             </div>
           </div>
         ) : (
           <>
             <label>
-              行情周期
+              {t('drawer_market_period')}
               <select
                 value={s.config.analysisPeriod}
                 onChange={(event) =>
@@ -583,13 +622,13 @@ function Config({
                   )
                 }
               >
-                <option value="1d">日线</option>
-                <option value="1w">周线</option>
-                <option value="1M">月线</option>
+                <option value="1d">{t('period_day')}</option>
+                <option value="1w">{t('period_week')}</option>
+                <option value="1M">{t('period_month')}</option>
               </select>
             </label>
             <label>
-              分析 K 线数量
+              {t('drawer_analysis_candle_count')}
               <input
                 type="number"
                 min={MIN_ANALYSIS_CANDLES}

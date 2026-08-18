@@ -1,6 +1,7 @@
 import type {
   EvidenceItem,
   MarketData,
+  TradeAction,
   UserConfig,
   WyckoffAnalysisResult,
   WyckoffStage,
@@ -8,6 +9,7 @@ import type {
 import { MIN_ANALYSIS_CANDLES, STRATEGY_DEFAULTS } from '../model/types';
 import { assessQuality } from '../adapter/normalize';
 import { getAnalysisConfigError } from '../config';
+import { dedupeMessages, message, type LocalizedMessage } from '../../shared/i18n-types';
 
 const average = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 const clamp = (v: number, min = 0, max = 100) => Math.max(min, Math.min(max, v));
@@ -16,9 +18,9 @@ const pct = (a: number, b: number) => (b === 0 ? 0 : (a - b) / b);
 export class AnalysisInputError extends Error {
   constructor(
     public readonly code: string,
-    message: string,
+    public readonly userMessage: LocalizedMessage,
   ) {
-    super(message);
+    super(code);
     this.name = 'AnalysisInputError';
   }
 }
@@ -27,21 +29,18 @@ export function prepareMarketDataForAnalysis(data: MarketData, config: UserConfi
   const configError = getAnalysisConfigError(config);
   if (configError) throw new AnalysisInputError('E_ANALYSIS_CONFIG_INVALID', configError);
   if (!data.candles.length)
-    throw new AnalysisInputError(
-      'E_MARKET_DATA_INVALID',
-      '捕获到的行情数据无有效 K 线，请确认标的和周期后刷新页面重试',
-    );
+    throw new AnalysisInputError('E_MARKET_DATA_INVALID', message('error_market_data_invalid'));
   if (data.candles.length < config.analysisCandleCount)
     throw new AnalysisInputError(
       'E_ANALYSIS_CANDLES_INSUFFICIENT',
-      [
-        `当前仅获取 ${data.candles.length} 根有效 K 线，策略需要 ${config.analysisCandleCount} 根`,
-        ...data.quality.warnings.filter((warning) => warning.startsWith('已忽略')),
-      ].join('；'),
+      message('error_analysis_candles_insufficient', [
+        data.candles.length,
+        config.analysisCandleCount,
+      ]),
     );
   const candles = data.candles.slice(-config.analysisCandleCount);
   const quality = assessQuality(candles, MIN_ANALYSIS_CANDLES);
-  quality.warnings = [...new Set([...data.quality.warnings, ...quality.warnings])];
+  quality.warnings = dedupeMessages([...data.quality.warnings, ...quality.warnings]);
   return { ...data, candles, quality };
 }
 
@@ -77,7 +76,7 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
   const spread = (resistance - support) / Math.max(support, Number.EPSILON);
   const evidence: EvidenceItem[] = [];
   let stage: WyckoffStage = 'UNKNOWN';
-  let action: 'BUY' | 'SELL' | 'HOLD' | 'RISK' = 'HOLD';
+  let action: TradeAction = 'HOLD';
   let score = Math.round(prepared.quality.score * 0.2);
   const hasUsableVolume = volumeAverage > 0;
 
@@ -100,33 +99,29 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
     score = Math.min(score, 20);
     evidence.push({
       code: 'PRICE_ONLY',
-      label: '价格结构观察',
-      detail: '当前数据缺少可用成交量，未输出依赖量能确认的维科夫阶段和买卖信号',
       score: 0,
     });
   } else if (breakout) {
     stage = 'MARKUP';
     action = 'BUY';
     score += 50;
-    evidence.push({ code: 'B003', label: '放量突破', detail: '价格放量突破前区间阻力', score: 20 });
+    evidence.push({ code: 'B003', score: 20 });
   } else if (breakdown) {
     stage = 'MARKDOWN';
     action = 'SELL';
     score += 55;
-    evidence.push({ code: 'S003', label: '放量跌破', detail: '价格放量跌破前区间支撑', score: 25 });
+    evidence.push({ code: 'S003', score: 25 });
   } else if (spring) {
     stage = 'SPRING_TEST';
     action = 'BUY';
     score += 45;
-    evidence.push({ code: 'B001', label: 'Spring 测试', detail: '跌破支撑后快速收回', score: 20 });
+    evidence.push({ code: 'B001', score: 20 });
   } else if (divergence && trend > 0) {
     stage = 'DISTRIBUTION';
     action = 'SELL';
     score += 35;
     evidence.push({
       code: 'S002',
-      label: '价量背离',
-      detail: '价格创新高但平均成交量下降',
       score: 15,
     });
   } else if (spread < 0.12 && trend <= 0.05) {
@@ -135,8 +130,6 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
     score += 25;
     evidence.push({
       code: 'B004',
-      label: '区间吸筹候选',
-      detail: '价格处于窄幅区间，等待突破确认',
       score: 10,
     });
   } else if (trend > 0.08) {
@@ -145,8 +138,6 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
     score += 30;
     evidence.push({
       code: 'TREND_UP',
-      label: '上涨趋势',
-      detail: '分析窗口内价格保持上行',
       score: 10,
     });
   } else if (trend < -0.08) {
@@ -155,8 +146,6 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
     score += 30;
     evidence.push({
       code: 'TREND_DOWN',
-      label: '下跌趋势',
-      detail: '分析窗口内价格持续下行',
       score: 10,
     });
   }
@@ -166,7 +155,7 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
     action = 'HOLD';
     score -= 25;
   }
-  if (evidence.length === 0) warnings.push('当前量价结构不明确，建议等待确认');
+  if (evidence.length === 0) warnings.push(message('warning_unclear_structure'));
   return {
     id: crypto.randomUUID(),
     stage,
@@ -175,7 +164,6 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
       confidence: clamp(score),
       price: latest.close,
       reasonCodes: evidence.map((e) => e.code),
-      explanations: evidence.map((e) => e.detail),
       riskWarnings: warnings,
     },
     volumeSummary: {

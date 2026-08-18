@@ -1,4 +1,5 @@
 import type { Candle, DataQuality, MarketData } from '../model/types';
+import { message } from '../../shared/i18n-types';
 
 const n = (value: unknown) => {
   if (typeof value === 'number') return value;
@@ -55,9 +56,10 @@ export function normalizeCandles(input: unknown): Candle[] {
 
 export function assessQuality(candles: Candle[], minCandles = 20): DataQuality {
   // 数据量和成交量是量价策略可执行的最低质量门槛。
-  const warnings: string[] = [];
-  if (candles.length < minCandles) warnings.push(`数据不足：至少需要 ${minCandles} 根 K 线`);
-  if (candles.every((c) => c.volume === 0)) warnings.push('成交量缺失，无法可靠执行量价分析');
+  const warnings: DataQuality['warnings'] = [];
+  if (candles.length < minCandles)
+    warnings.push(message('warning_insufficient_data', [minCandles]));
+  if (candles.every((c) => c.volume === 0)) warnings.push(message('warning_missing_volume'));
   const score = Math.max(
     0,
     Math.min(
@@ -92,7 +94,7 @@ export function createMarketData(
   const quality = assessQuality(candles, minCandles);
   const inputCount = Array.isArray(candidates) ? candidates.length : 0;
   const ignoredCount = Math.max(0, inputCount - candles.length);
-  if (ignoredCount) quality.warnings.unshift(`已忽略 ${ignoredCount} 条无效或重复的 K 线数据`);
+  if (ignoredCount) quality.warnings.unshift(message('warning_ignored_candles', [ignoredCount]));
   return {
     id: crypto.randomUUID(),
     siteId,

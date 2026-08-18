@@ -1,3 +1,5 @@
+import type { LocalizedMessage } from '../../shared/i18n-types';
+
 // 核心领域模型统一约束跨站点行情、分析结果和用户配置。
 export type Candle = {
   timestamp: number;
@@ -11,7 +13,7 @@ export type DataQuality = {
   valid: boolean;
   candleCount: number;
   missingFields: string[];
-  warnings: string[];
+  warnings: LocalizedMessage[];
   score: number;
 };
 export type MarketData = {
@@ -62,15 +64,25 @@ export type WyckoffStage =
   | 'DISTRIBUTION'
   | 'MARKDOWN'
   | 'UNKNOWN';
+export type TradeAction = 'BUY' | 'SELL' | 'HOLD' | 'RISK';
+export type VolumeLabel = 'SPIKE' | 'LOW' | 'NORMAL';
+export type EvidenceCode =
+  | 'PRICE_ONLY'
+  | 'B003'
+  | 'S003'
+  | 'B001'
+  | 'S002'
+  | 'B004'
+  | 'TREND_UP'
+  | 'TREND_DOWN';
 export type TradeSignal = {
-  action: 'BUY' | 'SELL' | 'HOLD' | 'RISK';
+  action: TradeAction;
   confidence: number;
   price?: number;
-  reasonCodes: string[];
-  explanations: string[];
-  riskWarnings: string[];
+  reasonCodes: EvidenceCode[];
+  riskWarnings: LocalizedMessage[];
 };
-export type EvidenceItem = { code: string; label: string; detail: string; score: number };
+export type EvidenceItem = { code: EvidenceCode; score: number };
 export type WyckoffAnalysisResult = {
   id: string;
   stage: WyckoffStage;
@@ -79,11 +91,11 @@ export type WyckoffAnalysisResult = {
     average: number;
     latest: number;
     ratio: number;
-    label: 'SPIKE' | 'LOW' | 'NORMAL';
+    label: VolumeLabel;
   };
   keyLevels: { support: number; resistance: number };
   evidence: EvidenceItem[];
-  warnings: string[];
+  warnings: LocalizedMessage[];
   createdAt: number;
 };
 export type RawMarketPayload = {

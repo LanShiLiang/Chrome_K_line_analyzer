@@ -75,6 +75,9 @@ try {
   await cp(resolve(root, 'assets', 'icons'), resolve(assembledDir, 'icons'), {
     recursive: true,
   });
+  await cp(resolve(root, '_locales'), resolve(assembledDir, '_locales'), {
+    recursive: true,
+  });
   await rm(resolve(assembledDir, 'icons', 'icon.svg'));
   await copyFile(resolve(root, manifestFile), resolve(assembledDir, 'manifest.json'));
   await verifyExtensionBuild(assembledDir, { profile });

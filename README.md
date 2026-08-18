@@ -1,104 +1,116 @@
 # K Line Analyzer
 
-Chrome Manifest V3 纯前端 K 线量价分析插件。插件按站点选择主动行情接口或页面 WebSocket，将数据统一为 OHLCV，并通过可解释的维科夫量价规则输出阶段、信号、置信度、关键价位和风险提示。
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
-## 推荐使用方式
+A Chrome Manifest V3 extension for local candlestick, volume-price, and Wyckoff analysis. It chooses a site-appropriate market-data path, normalizes data into OHLCV, and presents explainable stages, signals, confidence, key levels, and risk warnings in the Chrome Side Panel.
 
-优先在 Binance 和同花顺行情页面使用本插件：
+## Recommended Usage
 
-- **Binance 示例**：[BTC/USDT 现货行情](https://www.binance.com/en/trade/BTC_USDT?type=spot)。适合加密资产 K 线与成交量分析。
-- **同花顺示例**：[贵州茅台 600519](https://stockpage.10jqka.com.cn/600519/)。适合 A 股个股 K 线与成交量分析，并使用红涨绿跌配色。
+Use the extension primarily on Binance and Tonghuashun market pages:
 
-打开支持的行情页面并刷新后，点击浏览器工具栏中的 K Line Analyzer 图标，选择“打开侧边分析面板”，再点击“开始分析”。插件会识别当前交易对或证券代码，获取对应公开行情，并在本地生成结论、依据和图表。
+- **Binance example:** [BTC/USDT Spot](https://www.binance.com/en/trade/BTC_USDT?type=spot), for crypto candlestick and volume analysis.
+- **Tonghuashun example:** [Kweichow Moutai 600519](https://stockpage.10jqka.com.cn/600519/), for mainland China A-share analysis with red-up and green-down market colors.
 
-TradingView 作为兼容路径，仅分析页面已经推送且被插件被动捕获的行情；其可用性取决于当前图表数据。首次使用和日常使用建议选择 Binance 或同花顺。
+Open and refresh a supported market page, click the K Line Analyzer toolbar icon, choose **Open Side Panel**, and then select **Start Analysis**. The extension identifies the current symbol, obtains the corresponding public market data, and generates the result and chart locally.
 
-## 功能
+TradingView remains a compatibility path. It only analyzes market data already streamed by the current page and passively captured by the extension. Availability depends on the current chart data; Binance or Tonghuashun is recommended for normal use.
 
-- 页面主世界 WebSocket 只读监听，不修改宿主连接、收发帧和心跳。
-- 支持 Binance、同花顺和 TradingView：前两者优先使用公开行情接口，TradingView 使用页面 WebSocket 被动数据。
-- Content Script 框选遮罩，支持 Esc 取消。
-- Tab 级候选数据与分析上下文隔离。
-- 数组、对象两类常见 OHLCV 格式标准化。
-- 吸筹、Spring 测试、拉升、派发、下跌阶段识别。
-- 买入、卖出、观望、风险信号及原因码。
-- Lightweight Charts K 线与成交量展示。
-- 用户可配置日/周/月周期和 20–1000 根分析 K 线；分析与图表使用同一数据快照。
-- 策略阈值由分析引擎统一维护，用户设置保存在 Chrome Storage。
+## Features
 
-## 环境要求
+- English by default, with Simplified Chinese automatically selected from the Chrome UI language.
+- Localized extension name, description, Popup, Side Panel, errors, warnings, stages, actions, and analysis evidence.
+- Read-only MAIN-world WebSocket observation without altering host connections, frames, or heartbeat behavior.
+- Binance and Tonghuashun active public market-data requests with passive page-data fallback.
+- TradingView passive current-chart compatibility with locked strategy parameters.
+- Tab-scoped market candidates and analysis context isolation.
+- OHLCV normalization for common array and object formats.
+- Explainable accumulation, Spring test, markup, distribution, and markdown detection.
+- Buy, sell, hold, and risk signals with reason codes and confidence.
+- Lightweight Charts candlestick and volume rendering.
+- Daily, weekly, and monthly periods with a configurable 20–1000 candle window.
+- One `analysisCandleCount` snapshot drives both analysis and chart rendering.
+- User settings remain in `chrome.storage.local`.
+
+## Requirements
 
 - Node.js 20+
 - npm 10+
-- Chrome 最新稳定版
+- Latest stable Chrome
 
-## 开发
+## Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-`npm run dev` 使用 `manifest.dev.json`，保留 `localhost` 和 `127.0.0.1` 测试页访问。打开 `chrome://extensions`，启用开发者模式，选择“加载已解压的扩展程序”，加载项目的 `dist` 目录。打开目标行情页并刷新，使 Inject Script 在网站创建 WebSocket 连接前完成 Hook。
+`npm run dev` uses `manifest.dev.json` and retains local test-page access for `localhost` and `127.0.0.1`. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the generated `dist` directory. Refresh the target market page after loading or reloading the extension so the MAIN-world hook is installed before the page creates its WebSocket connections.
 
-`npm run build`、真实站点 E2E 和发布打包统一使用 `manifest.prod.json`。Production Manifest 只包含当前支持页面及 Binance、同花顺公开行情接口所需域名；构建审计会拒绝任何包含 `localhost`、`127.0.0.1` 或与生产清单不一致的产物。
+Production builds and release packaging use `manifest.prod.json`. The production manifest contains only supported page origins and the Binance/Tonghuashun public market-data endpoints. Build verification rejects local-development hosts, inconsistent manifests, missing locale messages, stale files, and invalid extension entry points.
 
-## 验证
+## Verification
 
 ```bash
 npm run typecheck
 npm test
-npm run test:e2e:binance
-npm run test:e2e:tonghuashun
+npm run test:e2e:locale
 npm run test:e2e:release
 npm run build
 npm run package
 ```
 
-`test:e2e:binance` 会构建并加载当前 `dist`，使用隔离的 Playwright Chromium 打开
-`https://www.binance.com/en/trade/BTC_USDT?type=spot`；`test:e2e:tonghuashun` 使用同样流程打开 `https://stockpage.10jqka.com.cn/600519/`。两项测试都会通过 Popup 用户手势打开真实 Chrome Side Panel，验证开始分析、分析结论与依据、200/64 根 K 线非空画布、参数即时重算、响应式布局和分析台重置。`test:e2e:release` 与 `npm run package` 将两个真实站点都设为发布门禁。
+- `test:e2e:locale` loads the real extension against Binance in English and Simplified Chinese Chrome environments.
+- `test:e2e:release` validates the English Binance path and Simplified Chinese Tonghuashun path.
+- Real Side Panel E2E covers the Popup user gesture, active Tab binding, localized UI, 200/64 candle analysis, non-empty Canvas output, responsive layout, and reset behavior.
+- `npm run package` runs the complete release gate and creates the versioned ZIP and SHA-256 checksum.
 
-## Chrome Web Store 发布材料
+## Chrome Web Store Materials
 
-- `PRIVACY.md`：中英双语隐私政策，说明本地数据处理、支持站点、保留期限、第三方行情请求和 Limited Use。
-- `docs/WEB_STORE_LISTING.md`：可直接用于 Developer Dashboard 的单一用途、商店说明、权限理由、数据披露和提交清单。
-- `assets/icons/`：Manifest 使用的 16、32、48、128 px PNG 图标及可编辑 SVG 源文件。
-- `store-assets/`：1280×800 商店截图和 440×280 小型宣传图。
+- `PRIVACY.md`: bilingual privacy policy covering local processing, supported sites, retention, third-party market requests, and Limited Use.
+- `docs/WEB_STORE_LISTING.md`: default English store listing, permissions, data disclosures, and submission checklist.
+- `docs/WEB_STORE_LISTING.zh-CN.md`: matching Simplified Chinese store listing.
+- `assets/icons/`: 16, 32, 48, and 128 px Manifest icons plus the editable SVG source.
+- `store-assets/en/`: English localized screenshots.
+- `store-assets/zh-CN/`: Simplified Chinese localized screenshots.
+- `store-assets/promo-small-440x280.png`: global text-free promotional tile.
 
-运行 `npm run assets:store` 会先生成图标，再执行真实 Binance 与同花顺 E2E，并基于两个站点的最新 Side Panel 产物重新生成商店素材。
+Run `npm run assets:store` to rebuild icons, execute the required locale/site E2E matrix, and regenerate localized Chrome Web Store screenshots.
 
-## 目录
+## Project Layout
 
 ```text
-src/background    Service Worker 与 Tab Session
-src/content       页面识别、框选和 Inject 桥接
-src/inject        WebSocket Hook 与增量 K 线聚合
-src/core/adapter  站点主动请求、WebSocket 协议解析、OHLCV 标准化与质量校验
-src/core/config   用户配置迁移、合并与校验
-src/core/analysis 维科夫量价策略引擎
-src/drawer        分析面板、图表与实时策略设置
-src/popup         插件快捷入口
-tests             单元测试
-docs/spec         原始企业评审版技术方案（实现基线）
+_locales         English and Simplified Chinese Chrome message catalogs
+src/background   Service Worker and Tab sessions
+src/content      Page recognition, selection overlay, and Inject bridge
+src/inject       MAIN-world WebSocket observation and candle aggregation
+src/core/adapter Site requests, WebSocket parsing, normalization, and quality checks
+src/core/config  User configuration migration, merging, and validation
+src/core/analysis Explainable Wyckoff and volume-price rules
+src/drawer       Side Panel UI, charting, localization mapping, and settings
+src/popup        Toolbar Popup entry point
+tests            Unit and release-contract tests
+docs/spec        Technical design documents
 ```
 
-## 文档
+## Documentation
 
-- `docs/IMPLEMENTATION.md`：当前代码实现、消息契约、扩展点和已知边界。
-- `docs/spec/README.md`：原始技术方案文档包的阅读顺序和章节映射。
-- `docs/spec/01_*.md` 至 `08_*.md`：总体架构、MV3 运行时、交互、采集适配、数据状态、策略引擎、测试验收和发布运维方案。
+- [User Guide](./docs/USER_GUIDE.md) / [用户指南](./docs/USER_GUIDE.zh-CN.md)
+- [FAQ](./docs/FAQ.md) / [常见问题](./docs/FAQ.zh-CN.md)
+- `docs/IMPLEMENTATION.md`: current implementation, message contracts, extension points, and known boundaries.
+- `docs/spec/README.md`: reading order for the technical design package.
 
-修改架构、权限、消息协议、行情数据模型或策略规则时，应同步更新对应方案和 `docs/IMPLEMENTATION.md`。
+Update the relevant Markdown documents whenever permissions, message contracts, market-data models, strategy rules, or public behavior change.
 
-## 安全边界
+## Security and Privacy Boundaries
 
-- 不读取或存储 Cookie、Token、账号和交易账户信息。
-- 捕获失败不会影响宿主页面原始请求。
-- 所有计算和配置均保留在本地浏览器中。
-- 当前受支持页面的 URL、标题和公开行情内容只用于识别市场上下文并生成本地分析。
-- 主动行情请求仅访问 Manifest 明确声明的 Binance 与同花顺数据域名。
-- 页面桥接数据仍属于不可信输入，进入分析前会经过结构检查、OHLCV 标准化和数量校验。
+- The extension does not read or store cookies, authentication tokens, account credentials, trading accounts, positions, or orders.
+- Market data, page context, and analysis results are not uploaded to a developer server.
+- Active requests access only the explicitly declared Binance and Tonghuashun public market-data endpoints and omit credentials.
+- The page bridge treats all captured data as untrusted input and validates structure, OHLC relationships, volume, and candle count before analysis.
+- Invalid settings, insufficient candles, and calculation failures are shown as user-facing errors instead of silently returning a hold signal.
 
-## 策略声明
+See the bilingual [Privacy Policy](./PRIVACY.md) for the complete disclosure.
 
-分析结果仅供技术研究，不构成投资建议，不保证准确率或收益。
+## Disclaimer
+
+Results are for technical research only. They are not investment advice, do not guarantee accuracy or returns, and do not replace independent judgment.

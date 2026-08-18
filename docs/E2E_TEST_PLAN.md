@@ -255,7 +255,7 @@ MAIN World → ISOLATED Content Script → Service Worker
 
 ### 10.0 已实现的 Binance 与同花顺自动化门禁
 
-执行命令：`npm run test:e2e:binance`、`npm run test:e2e:tonghuashun`；发布时统一运行 `npm run test:e2e:release`。
+执行命令：`npm run test:e2e:binance`、`npm run test:e2e:tonghuashun`；发布时统一运行 `npm run test:e2e:release`，单站点双语验收运行 `npm run test:e2e:locale`，双站点双语商店素材验收运行 `npm run test:e2e:assets`。
 
 固定页面：
 
@@ -272,8 +272,10 @@ MAIN World → ISOLATED Content Script → Service Worker
 6. 点击右上角“重置分析台”后，结果和图表被清空，策略参数恢复默认 200；
 7. 检查 Popup 固定宽度以及 Side Panel 放宽、缩窄、极窄折叠和恢复后的布局；
 8. 两个站点分别保存行情页、200 根、64 根、响应式和重置后的真实 Side Panel 截图，失败时保存对应站点的 `e2e-failure.png`。
+9. 分别以 `en-US` 和 `zh-CN` 启动 Chrome，校验 `chrome.i18n.getUILanguage()`、Popup、Side Panel 和分析结果的语言一致。
+10. 断言界面不直接暴露 `BUY`、`MARKUP`等内部状态枚举，但后台响应仍保留这些稳定机器值。
 
-发布打包命令 `npm run package` 必须先通过两个真实站点 E2E，避免仅凭单元测试发布。
+发布打包命令 `npm run package` 必须先通过 Binance 英文和同花顺简体中文的真实站点 E2E，避免仅凭单元测试发布。商店截图生成会进一步运行两个站点的中英文组合。
 
 ### 10.1 Agent 角色
 

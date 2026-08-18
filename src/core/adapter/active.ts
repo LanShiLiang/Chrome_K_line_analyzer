@@ -3,6 +3,7 @@ import { detectMarketSiteFromHost } from './sites';
 import { getAnalysisConfigError } from '../config';
 import { MIN_ANALYSIS_CANDLES } from '../model/types';
 import type { AnalysisPeriod, MarketData, UserConfig } from '../model/types';
+import { message, type LocalizedMessage } from '../../shared/i18n-types';
 
 export type ActiveMarketRequest = {
   siteId: 'binance' | 'tonghuashun';
@@ -22,9 +23,9 @@ const ACTIVE_MARKET_TIMEOUT_MS = 10_000;
 export class ActiveMarketDataError extends Error {
   constructor(
     public readonly code: string,
-    message: string,
+    public readonly userMessage: LocalizedMessage,
   ) {
-    super(message);
+    super(code);
     this.name = 'ActiveMarketDataError';
   }
 }
@@ -42,7 +43,7 @@ export function createActiveMarketRequest(
   try {
     url = new URL(pageUrl);
   } catch {
-    throw new ActiveMarketDataError('E_PAGE_URL_INVALID', '当前行情页面地址无效，请刷新后重试');
+    throw new ActiveMarketDataError('E_PAGE_URL_INVALID', message('error_page_url_invalid'));
   }
   const site = detectMarketSiteFromHost(url.hostname);
   return site === 'binance' || site === 'tonghuashun'
@@ -57,7 +58,10 @@ const ACTIVE_REQUEST_BUILDERS: Record<ActiveSite, RequestBuilder> = {
     )?.[1];
     const symbol = tradeSegment?.replace(/[_-]/g, '').toUpperCase();
     if (!symbol || !/^[A-Z0-9]+$/.test(symbol))
-      throw new ActiveMarketDataError('E_SYMBOL_UNRECOGNIZED', '无法从 Binance 页面识别交易对');
+      throw new ActiveMarketDataError(
+        'E_SYMBOL_UNRECOGNIZED',
+        message('error_binance_symbol_unrecognized'),
+      );
     const requestUrl = new URL('https://data-api.binance.vision/api/v3/klines');
     requestUrl.searchParams.set('symbol', symbol);
     requestUrl.searchParams.set('interval', config.analysisPeriod);
@@ -73,7 +77,10 @@ const ACTIVE_REQUEST_BUILDERS: Record<ActiveSite, RequestBuilder> = {
   tonghuashun: (pageUrl, config) => {
     const symbol = pageUrl.pathname.match(/^\/(\d{6})(?:\/|$)/)?.[1];
     if (!symbol)
-      throw new ActiveMarketDataError('E_SYMBOL_UNRECOGNIZED', '无法从同花顺页面识别股票代码');
+      throw new ActiveMarketDataError(
+        'E_SYMBOL_UNRECOGNIZED',
+        message('error_tonghuashun_symbol_unrecognized'),
+      );
     const periodCode = THS_PERIOD_CODES[config.analysisPeriod];
     return {
       siteId: 'tonghuashun',
@@ -105,14 +112,18 @@ export async function fetchActiveMarketData(
     throw new ActiveMarketDataError(
       'E_ACTIVE_MARKET_REQUEST_FAILED',
       timedOut
-        ? '行情接口请求超时，请检查网络后重试'
-        : `主动获取${request.siteId === 'binance' ? ' Binance' : '同花顺'}行情失败：${String(error)}`,
+        ? message('error_market_request_timeout')
+        : message(
+            request.siteId === 'binance'
+              ? 'error_binance_market_request_failed'
+              : 'error_tonghuashun_market_request_failed',
+          ),
     );
   }
   if (!response.ok)
     throw new ActiveMarketDataError(
       'E_ACTIVE_MARKET_HTTP_ERROR',
-      `行情接口返回 HTTP ${response.status}`,
+      message('error_market_http', [response.status]),
     );
 
   const raw = await ACTIVE_RESPONSE_PARSERS[request.siteId](response);
@@ -138,10 +149,16 @@ async function parseBinanceResponse(response: Response): Promise<unknown[]> {
   try {
     payload = await response.json();
   } catch {
-    throw new ActiveMarketDataError('E_ACTIVE_MARKET_RESPONSE_INVALID', 'Binance 行情响应无法解析');
+    throw new ActiveMarketDataError(
+      'E_ACTIVE_MARKET_RESPONSE_INVALID',
+      message('error_binance_response_parse'),
+    );
   }
   if (!Array.isArray(payload))
-    throw new ActiveMarketDataError('E_ACTIVE_MARKET_RESPONSE_INVALID', 'Binance 行情响应格式无效');
+    throw new ActiveMarketDataError(
+      'E_ACTIVE_MARKET_RESPONSE_INVALID',
+      message('error_binance_response_format'),
+    );
   return payload;
 }
 
@@ -149,19 +166,25 @@ export function parseTonghuashunResponse(text: string): unknown[] {
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   if (start < 0 || end <= start)
-    throw new ActiveMarketDataError('E_ACTIVE_MARKET_RESPONSE_INVALID', '同花顺行情响应格式无效');
+    throw new ActiveMarketDataError(
+      'E_ACTIVE_MARKET_RESPONSE_INVALID',
+      message('error_tonghuashun_response_format'),
+    );
 
   let payload: unknown;
   try {
     payload = JSON.parse(text.slice(start, end + 1));
   } catch {
-    throw new ActiveMarketDataError('E_ACTIVE_MARKET_RESPONSE_INVALID', '同花顺行情响应无法解析');
+    throw new ActiveMarketDataError(
+      'E_ACTIVE_MARKET_RESPONSE_INVALID',
+      message('error_tonghuashun_response_parse'),
+    );
   }
   const data = (payload as { data?: unknown })?.data;
   if (typeof data !== 'string')
     throw new ActiveMarketDataError(
       'E_ACTIVE_MARKET_RESPONSE_INVALID',
-      '同花顺行情响应缺少 K 线数据',
+      message('error_tonghuashun_response_missing_candles'),
     );
 
   return data

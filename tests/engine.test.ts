@@ -20,6 +20,7 @@ import {
   type Candle,
   type MarketData,
 } from '../src/core/model/types';
+import { message } from '../src/shared/i18n-types';
 
 // 构造稳定的 OHLCV 序列，覆盖策略阈值、信号降级和证据输出。
 const market = (candles: Candle[]): MarketData => ({
@@ -93,7 +94,7 @@ describe('analyzeMarket', () => {
     expect(() => analyzeMarket(market(short), DEFAULT_CONFIG)).toThrowError(
       expect.objectContaining({
         code: 'E_ANALYSIS_CANDLES_INSUFFICIENT',
-        message: expect.stringContaining('当前仅获取 20 根'),
+        userMessage: message('error_analysis_candles_insufficient', [20, 200]),
       }),
     );
   });
@@ -141,14 +142,16 @@ describe('analyzeMarket', () => {
         ...DEFAULT_CONFIG,
         analysisCandleCount: 19,
       }),
-    ).toBe('分析 K 线数量不能少于 20 根');
+    ).toEqual(message('error_config_candle_count_min', [20]));
     expect(
       getAnalysisConfigError({
         ...DEFAULT_CONFIG,
         analysisCandleCount: 1001,
       }),
-    ).toContain('不能超过');
-    expect(new AnalysisInputError('E_TEST', 'test')).toMatchObject({ code: 'E_TEST' });
+    ).toEqual(message('error_config_candle_count_max', [1000]));
+    expect(new AnalysisInputError('E_TEST', message('error_analysis_failed'))).toMatchObject({
+      code: 'E_TEST',
+    });
   });
 
   it('migrates old stored settings without retaining removed strategy fields', () => {
@@ -193,7 +196,7 @@ describe('analyzeMarket', () => {
     expect(result.stage).toBe('UNKNOWN');
     expect(result.signal.action).toBe('HOLD');
     expect(result.signal.reasonCodes).toEqual(['PRICE_ONLY']);
-    expect(result.warnings).toContain('成交量缺失，无法可靠执行量价分析');
+    expect(result.warnings).toContainEqual(message('warning_missing_volume'));
   });
 
   it('uses the same calculation for Tonghuashun and Binance normalized candles', () => {

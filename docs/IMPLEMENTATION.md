@@ -11,6 +11,7 @@
 | 策略计算 | 单次快照编排 + 纯函数                                                    | 分析与图表严格复用同一批 K 线，可测试、可复现              |
 | 用户配置 | 周期 + 分析 K 线数量                                                     | 消除窗口和阈值之间的冲突；策略阈值由引擎统一维护           |
 | 数据存储 | Chrome Storage 配置；运行数据按 Tab 内存保存                             | 避免保存原始响应和敏感数据                                 |
+| 国际化   | Chrome `chrome.i18n` + `_locales/en` / `_locales/zh_CN`                  | 英文默认，按 Chrome 界面语言切换简体中文；缺失键构建失败   |
 
 界面品牌层使用深海蓝、冰蓝高光和低饱和蓝灰表面建立视觉层级；按钮、状态、选区与证据强调统一使用品牌蓝。K 线预览继续由 Lightweight Charts 按行情语义渲染涨跌与成交量颜色，不强制套用品牌色。Binance、TradingView 使用绿涨红跌；同花顺的策略结论、K 线实体/影线和成交量柱统一切换为红涨绿跌。
 
@@ -26,7 +27,11 @@
 - Tab 导航会清理旧候选和框选；异步分析完成前如果页面已切换，本次结果会被拒绝。
 - 框选范围用于交互确认；未获得图表坐标轴映射时，不以像素坐标裁切时间范围。
 - Manifest 已拆分为 `manifest.dev.json` 与 `manifest.prod.json`：开发清单保留本地测试页，生产清单只允许三个支持站点及 Binance、同花顺公开行情接口。`npm run build`、真实站点 E2E 和发布 ZIP 均强制使用生产清单，审计会拒绝 localhost、127.0.0.1 或清单错配。
-- 发布门禁会在真实 Chrome Side Panel 中分别打开 Binance BTC/USDT 与同花顺 600519，验证 Popup、200/64 根 K 线分析、图表、Tab 绑定、响应式缩放和重置；商店截图只从这两条最新主题验收产物生成。
+- Manifest 名称、简介、Popup 和 Side Panel 文案全部使用 Chrome i18n 键。`default_locale` 为 `en`，Chrome 界面语言为简体中文时使用 `zh_CN`，其他语言回退英文。
+- 策略引擎、Service Worker 和消息协议只传递稳定的英文枚举/代码，例如 `BUY`、`MARKUP`、`B003`和错误键；只有 UI 展示层把它们映射为当前语言，不在核心代码中引入中文状态。
+- 构建审计强制检查中英文 locale 键和占位符完全一致、Manifest 引用可解析，并将 locale 文件纳入发布包可达性检查。
+- 发布门禁会在真实 Chrome Side Panel 中打开 Binance BTC/USDT 与同花顺 600519，验证 Popup、200/64 根 K 线分析、图表、Tab 绑定、响应式缩放和重置；额外使用 `en-US` 和 `zh-CN` 验证语言切换及原始业务枚举不泄漏到界面。
+- 商店截图分别生成到 `store-assets/en/` 和 `store-assets/zh-CN/`；无文字小型宣传图全球共用，高级蓝视觉主题不随语言改变。
 - `PRIVACY.md` 与 `docs/WEB_STORE_LISTING.md` 记录实际数据边界、权限理由、Web Store Privacy practices 填写口径和 Limited Use 声明；产品 UI 同步提示行情及分析结果不上传开发者服务器。
 
 ## 下一阶段

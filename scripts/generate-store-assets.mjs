@@ -9,19 +9,34 @@ if (!['icons', 'store'].includes(mode))
 const iconSource = resolve(root, 'assets', 'icons', 'icon.svg');
 const iconDirectory = resolve(root, 'assets', 'icons');
 const storeDirectory = resolve(root, 'store-assets');
-const marketScreenshot = resolve(root, 'test-results', 'binance-spot-market-page.png');
-const analysisScreenshot = resolve(root, 'test-results', 'binance-spot-200-candles.png');
-const settingsScreenshot = resolve(root, 'test-results', 'binance-spot-64-candles.png');
-const tonghuashunMarketScreenshot = resolve(
-  root,
-  'test-results',
-  'tonghuashun-600519-market-page.png',
-);
-const tonghuashunAnalysisScreenshot = resolve(
-  root,
-  'test-results',
-  'tonghuashun-600519-200-candles.png',
-);
+const STORE_LOCALES = {
+  en: {
+    resultLocale: 'en-us',
+    titleAnalysis: 'Analyze Binance Markets Locally',
+    subtitleAnalysis:
+      'Open a BTC/USDT market page and review volume-price structure, evidence, and charts in the side panel.',
+    titleSettings: 'Reanalyze Immediately After a Setting Change',
+    subtitleSettings:
+      'Use daily, weekly, or monthly periods with 20–1000 candles. Settings stay in Chrome Storage.',
+    titleTonghuashun: 'Analyze Tonghuashun Stocks Beside the Market Page',
+    subtitleTonghuashun:
+      'Request public candles for the current stock code with Tonghuashun red-up and green-down chart colors.',
+    features: ['Volume-Price Analysis', 'Wyckoff', 'Local Processing'],
+  },
+  'zh-CN': {
+    resultLocale: 'zh-cn',
+    titleAnalysis: '在 Binance 行情页旁完成本地分析',
+    subtitleAnalysis: '打开 BTC/USDT 等现货行情，在侧边面板查看量价结构、依据与成交量图表。',
+    titleSettings: '参数调整后即时重新分析',
+    subtitleSettings: '支持日、周、月周期与 20–1000 根 K 线；设置保存在 Chrome Storage。',
+    titleTonghuashun: '浏览同花顺个股时直接分析',
+    subtitleTonghuashun: '根据当前证券代码获取公开 K 线；同花顺图表采用红涨绿跌的市场配色。',
+    features: ['量价分析', '维科夫分析', '本地处理'],
+  },
+};
+
+const sourceScreenshot = (prefix, locale, suffix) =>
+  resolve(root, 'test-results', `${prefix}-${locale.resultLocale}-${suffix}.png`);
 
 const existingPath = async (...paths) => {
   for (const path of paths) {
@@ -92,21 +107,6 @@ try {
   if (mode === 'icons') {
     console.log(`Generated extension icons in ${iconDirectory}`);
   } else {
-    await Promise.all([
-      access(marketScreenshot),
-      access(analysisScreenshot),
-      access(settingsScreenshot),
-      access(tonghuashunMarketScreenshot),
-      access(tonghuashunAnalysisScreenshot),
-    ]);
-    const [market, analysis, settings, tonghuashunMarket, tonghuashunAnalysis] = await Promise.all([
-      asDataUrl(marketScreenshot, 'image/png'),
-      asDataUrl(analysisScreenshot, 'image/png'),
-      asDataUrl(settingsScreenshot, 'image/png'),
-      asDataUrl(tonghuashunMarketScreenshot, 'image/png'),
-      asDataUrl(tonghuashunAnalysisScreenshot, 'image/png'),
-    ]);
-
     const promoCandles = `<svg viewBox="0 0 440 280" width="440" height="280" aria-hidden="true">
     <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07111f"/><stop offset="1" stop-color="#152f54"/></linearGradient></defs>
     <rect width="440" height="280" fill="url(#bg)"/>
@@ -121,7 +121,7 @@ try {
       `${promoCandles}<img src="${icon}" alt="" style="position:absolute;width:144px;height:144px;left:148px;top:68px;filter:drop-shadow(0 18px 24px #0008)" />`,
     );
 
-    const storeScreenshot = (background, panel, title, subtitle, position) => `
+    const storeScreenshot = (background, panel, title, subtitle, features, position) => `
     <div style="position:absolute;inset:0;background:#050b16">
       <img src="${background}" alt="" style="width:100%;height:100%;object-fit:cover;filter:saturate(.72) brightness(.52)" />
       <div style="position:absolute;inset:0;background:linear-gradient(90deg,#06101ff2 0%,#08172bc4 48%,#0a1c344f 100%)"></div>
@@ -133,51 +133,67 @@ try {
       <h1 style="font-size:48px;line-height:1.16;margin:0 0 20px;letter-spacing:-.03em">${title}</h1>
       <p style="font-size:22px;line-height:1.55;margin:0;color:#a9bdd6">${subtitle}</p>
       <div style="display:flex;gap:10px;margin-top:30px;color:#dce9fa;font-size:15px">
-        <span style="border:1px solid #315987;border-radius:6px;background:#0d213dcc;padding:9px 14px">Volume Price Analysis</span>
-        <span style="border:1px solid #315987;border-radius:6px;background:#0d213dcc;padding:9px 14px">Wyckoff</span>
-        <span style="border:1px solid #315987;border-radius:6px;background:#0d213dcc;padding:9px 14px">Local Processing</span>
+        ${features.map((feature) => `<span style="border:1px solid #315987;border-radius:6px;background:#0d213dcc;padding:9px 14px">${feature}</span>`).join('')}
       </div>
     </div>
     <div style="position:absolute;right:34px;top:26px;width:430px;height:748px;background:#07111f;border:1px solid #3f6fa5;border-radius:12px;box-shadow:0 28px 70px #000b;overflow:hidden">
       <img src="${panel}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:${position}" />
     </div>`;
 
-    await capture(
-      1280,
-      800,
-      resolve(storeDirectory, 'screenshot-1-analysis-1280x800.png'),
-      storeScreenshot(
-        market,
-        analysis,
-        '在 Binance 行情页旁完成本地分析',
-        '打开 BTC/USDT 等现货行情，在侧边面板查看量价结构、依据与成交量图表。',
-        'top',
-      ),
-    );
-    await capture(
-      1280,
-      800,
-      resolve(storeDirectory, 'screenshot-2-settings-1280x800.png'),
-      storeScreenshot(
-        market,
-        settings,
-        '参数调整后即时重新分析',
-        '支持日、周、月周期与 20–1000 根 K 线；设置保存在 Chrome Storage。',
-        'bottom',
-      ),
-    );
-    await capture(
-      1280,
-      800,
-      resolve(storeDirectory, 'screenshot-3-tonghuashun-1280x800.png'),
-      storeScreenshot(
-        tonghuashunMarket,
-        tonghuashunAnalysis,
-        '浏览同花顺个股时直接分析',
-        '根据当前证券代码获取公开 K 线；同花顺图表采用红涨绿跌的市场配色。',
-        'top',
-      ),
-    );
+    for (const [localeName, copy] of Object.entries(STORE_LOCALES)) {
+      const localeDirectory = resolve(storeDirectory, localeName);
+      await mkdir(localeDirectory, { recursive: true });
+      const sources = {
+        market: sourceScreenshot('binance-spot', copy, 'market-page'),
+        analysis: sourceScreenshot('binance-spot', copy, '200-candles'),
+        settings: sourceScreenshot('binance-spot', copy, '64-candles'),
+        tonghuashunMarket: sourceScreenshot('tonghuashun-600519', copy, 'market-page'),
+        tonghuashunAnalysis: sourceScreenshot('tonghuashun-600519', copy, '200-candles'),
+      };
+      await Promise.all(Object.values(sources).map((source) => access(source)));
+      const [market, analysis, settings, tonghuashunMarket, tonghuashunAnalysis] =
+        await Promise.all(Object.values(sources).map((source) => asDataUrl(source, 'image/png')));
+
+      await capture(
+        1280,
+        800,
+        resolve(localeDirectory, 'screenshot-1-analysis-1280x800.png'),
+        storeScreenshot(
+          market,
+          analysis,
+          copy.titleAnalysis,
+          copy.subtitleAnalysis,
+          copy.features,
+          'top',
+        ),
+      );
+      await capture(
+        1280,
+        800,
+        resolve(localeDirectory, 'screenshot-2-settings-1280x800.png'),
+        storeScreenshot(
+          market,
+          settings,
+          copy.titleSettings,
+          copy.subtitleSettings,
+          copy.features,
+          'bottom',
+        ),
+      );
+      await capture(
+        1280,
+        800,
+        resolve(localeDirectory, 'screenshot-3-tonghuashun-1280x800.png'),
+        storeScreenshot(
+          tonghuashunMarket,
+          tonghuashunAnalysis,
+          copy.titleTonghuashun,
+          copy.subtitleTonghuashun,
+          copy.features,
+          'top',
+        ),
+      );
+    }
     console.log(`Generated Chrome Web Store assets in ${storeDirectory}`);
   }
 } finally {

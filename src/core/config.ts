@@ -6,6 +6,7 @@ import {
   type UserConfig,
 } from './model/types';
 import type { MarketSite } from './adapter/sites';
+import { message, type LocalizedMessage } from '../shared/i18n-types';
 
 const ANALYSIS_PERIODS: readonly AnalysisPeriod[] = ['1d', '1w', '1M'];
 
@@ -55,11 +56,12 @@ export function resolveAnalysisConfigForMarket(
   };
 }
 
-export function getAnalysisConfigError(config: UserConfig): string | undefined {
-  if (!isAnalysisPeriod(config.analysisPeriod)) return '行情周期无效，请重新选择';
-  if (!Number.isInteger(config.analysisCandleCount)) return '分析 K 线数量必须是整数';
+export function getAnalysisConfigError(config: UserConfig): LocalizedMessage | undefined {
+  if (!isAnalysisPeriod(config.analysisPeriod)) return message('error_config_period_invalid');
+  if (!Number.isInteger(config.analysisCandleCount))
+    return message('error_config_candle_count_integer');
   if (config.analysisCandleCount < MIN_ANALYSIS_CANDLES)
-    return `分析 K 线数量不能少于 ${MIN_ANALYSIS_CANDLES} 根`;
+    return message('error_config_candle_count_min', [MIN_ANALYSIS_CANDLES]);
   if (config.analysisCandleCount > MAX_ANALYSIS_CANDLES)
-    return `分析 K 线数量不能超过当前页面上限 ${MAX_ANALYSIS_CANDLES} 根`;
+    return message('error_config_candle_count_max', [MAX_ANALYSIS_CANDLES]);
 }
