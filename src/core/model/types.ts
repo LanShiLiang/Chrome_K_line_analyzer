@@ -37,9 +37,34 @@ export type SelectionRange = {
     devicePixelRatio: number;
   };
   rect: { left: number; top: number; width: number; height: number };
+  chartRect?: { left: number; top: number; width: number; height: number };
+  periodHints?: Array<{
+    period: AnalysisPeriod;
+    confidence: number;
+    source: 'selected-control' | 'chart-nearby' | 'page';
+  }>;
   capturedAt: number;
+  image?: SelectionImageEvidence;
+  interpretation?: SelectionInterpretation;
+  recognitionStatus?: 'capturing' | 'ready' | 'failed';
 };
-export type AnalysisPeriod = '1d' | '1w' | '1M';
+export type SelectionImageEvidence = {
+  dataUrl: string;
+  width: number;
+  height: number;
+  candleColors: Array<'green' | 'red' | 'unknown'>;
+  detectedCandles: number;
+  confidence: number;
+};
+export type SelectionInterpretation = {
+  period: AnalysisPeriod;
+  startTime: number;
+  endTime: number;
+  candleCount: number;
+  confidence: number;
+  method: 'image-sequence' | 'chart-geometry';
+};
+export type AnalysisPeriod = '30m' | '1h' | '4h' | '1d' | '1w' | '1M';
 export type UserConfig = {
   analysisPeriod: AnalysisPeriod;
   analysisCandleCount: number;
@@ -49,6 +74,7 @@ export const DEFAULT_CONFIG: UserConfig = {
   analysisCandleCount: 200,
 };
 export const MIN_ANALYSIS_CANDLES = 20;
+export const MIN_CANDLE_COUNT_INPUT = 1;
 export const MAX_ANALYSIS_CANDLES = 1000;
 // 策略阈值由引擎统一维护，避免用户参数彼此冲突或产生不可解释的组合。
 export const STRATEGY_DEFAULTS = {

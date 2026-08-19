@@ -13,7 +13,13 @@ export type ActiveMarketRequest = {
   adapterId: string;
 };
 
+export type MarketTimeRange = { startTime: number; endTime: number };
+
 const THS_PERIOD_CODES: Record<AnalysisPeriod, string> = {
+  '30m': '41',
+  '1h': '51',
+  // A 股连续竞价每天四小时；同花顺日聚合与 4h OHLCV 边界一致。
+  '4h': '71',
   '1d': '01',
   '1w': '11',
   '1M': '21',
@@ -31,11 +37,16 @@ export class ActiveMarketDataError extends Error {
 }
 
 type ActiveSite = ActiveMarketRequest['siteId'];
-type RequestBuilder = (pageUrl: URL, config: UserConfig) => ActiveMarketRequest;
+type RequestBuilder = (
+  pageUrl: URL,
+  config: UserConfig,
+  range?: MarketTimeRange,
+) => ActiveMarketRequest;
 
 export function createActiveMarketRequest(
   pageUrl: string,
   config: UserConfig,
+  range?: MarketTimeRange,
 ): ActiveMarketRequest | undefined {
   const configError = getAnalysisConfigError(config);
   if (configError) throw new ActiveMarketDataError('E_ANALYSIS_CONFIG_INVALID', configError);
@@ -47,12 +58,12 @@ export function createActiveMarketRequest(
   }
   const site = detectMarketSiteFromHost(url.hostname);
   return site === 'binance' || site === 'tonghuashun'
-    ? ACTIVE_REQUEST_BUILDERS[site](url, config)
+    ? ACTIVE_REQUEST_BUILDERS[site](url, config, range)
     : undefined;
 }
 
 const ACTIVE_REQUEST_BUILDERS: Record<ActiveSite, RequestBuilder> = {
-  binance: (pageUrl, config) => {
+  binance: (pageUrl, config, range) => {
     const tradeSegment = pageUrl.pathname.match(
       /^\/(?:[a-z]{2}(?:-[A-Z]{2})?\/)?trade\/([^/]+)/i,
     )?.[1];
@@ -66,6 +77,10 @@ const ACTIVE_REQUEST_BUILDERS: Record<ActiveSite, RequestBuilder> = {
     requestUrl.searchParams.set('symbol', symbol);
     requestUrl.searchParams.set('interval', config.analysisPeriod);
     requestUrl.searchParams.set('limit', String(config.analysisCandleCount));
+    if (range) {
+      requestUrl.searchParams.set('startTime', String(Math.trunc(range.startTime)));
+      requestUrl.searchParams.set('endTime', String(Math.trunc(range.endTime)));
+    }
     return {
       siteId: 'binance',
       symbol,
@@ -96,8 +111,9 @@ export async function fetchActiveMarketData(
   pageUrl: string,
   config: UserConfig,
   fetcher: typeof fetch = fetch,
+  range?: MarketTimeRange,
 ): Promise<MarketData | undefined> {
-  const request = createActiveMarketRequest(pageUrl, config);
+  const request = createActiveMarketRequest(pageUrl, config, range);
   if (!request) return undefined;
 
   let response: Response;
@@ -197,15 +213,20 @@ export function parseTonghuashunResponse(text: string): unknown[] {
 }
 
 function parseTonghuashunDate(value: string): number {
-  if (!/^\d{8}$/.test(value)) return Number.NaN;
+  if (!/^\d{8}(?:\d{4})?$/.test(value)) return Number.NaN;
   const year = Number(value.slice(0, 4));
   const month = Number(value.slice(4, 6));
   const day = Number(value.slice(6, 8));
-  const result = Date.UTC(year, month - 1, day);
-  const parsed = new Date(result);
+  const hour = value.length === 12 ? Number(value.slice(8, 10)) : 0;
+  const minute = value.length === 12 ? Number(value.slice(10, 12)) : 0;
+  const chinaOffset = value.length === 12 ? 8 * 60 * 60 * 1000 : 0;
+  const result = Date.UTC(year, month - 1, day, hour, minute) - chinaOffset;
+  const parsed = new Date(result + chinaOffset);
   return parsed.getUTCFullYear() === year &&
     parsed.getUTCMonth() === month - 1 &&
-    parsed.getUTCDate() === day
+    parsed.getUTCDate() === day &&
+    parsed.getUTCHours() === hour &&
+    parsed.getUTCMinutes() === minute
     ? result
     : Number.NaN;
 }

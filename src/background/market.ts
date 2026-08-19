@@ -3,6 +3,8 @@ import type { MarketSite } from '../core/adapter/sites';
 import { isSameMarketPage } from '../core/adapter/sites';
 import type { MarketData, RawMarketPayload } from '../core/model/types';
 import { MIN_ANALYSIS_CANDLES } from '../core/model/types';
+import { normalizeMarketPeriod } from '../core/selection/period';
+import type { AnalysisPeriod } from '../core/model/types';
 
 const locationHost = (url: string) => {
   try {
@@ -21,6 +23,7 @@ export function selectBestPassiveMarketData(
   candidates: RawMarketPayload[],
   site: MarketSite,
   pageUrl?: string,
+  preferredPeriod?: AnalysisPeriod,
 ): MarketData | undefined {
   return candidates
     .filter(
@@ -41,6 +44,9 @@ export function selectBestPassiveMarketData(
       ),
     }))
     .sort((left, right) => {
+      const leftPeriod = normalizeMarketPeriod(left.candidate.period) === preferredPeriod ? 1 : 0;
+      const rightPeriod = normalizeMarketPeriod(right.candidate.period) === preferredPeriod ? 1 : 0;
+      if (leftPeriod !== rightPeriod) return rightPeriod - leftPeriod;
       const volumeDifference = positiveVolumeCount(right.data) - positiveVolumeCount(left.data);
       if (volumeDifference) return volumeDifference;
       const candleDifference = right.data.candles.length - left.data.candles.length;

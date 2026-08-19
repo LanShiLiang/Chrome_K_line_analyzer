@@ -17,7 +17,7 @@ const STORE_LOCALES = {
       'Open a BTC/USDT market page and review volume-price structure, evidence, and charts in the side panel.',
     titleSettings: 'Reanalyze Immediately After a Setting Change',
     subtitleSettings:
-      'Use daily, weekly, or monthly periods with 20–1000 candles. Settings stay in Chrome Storage.',
+      'Use 30m, 1h, 4h, daily, weekly, or monthly periods with up to 1000 candles. Analysis requires at least 20.',
     titleTonghuashun: 'Analyze Tonghuashun Stocks Beside the Market Page',
     subtitleTonghuashun:
       'Request public candles for the current stock code with Tonghuashun red-up and green-down chart colors.',
@@ -28,7 +28,8 @@ const STORE_LOCALES = {
     titleAnalysis: '在 Binance 行情页旁完成本地分析',
     subtitleAnalysis: '打开 BTC/USDT 等现货行情，在侧边面板查看量价结构、依据与成交量图表。',
     titleSettings: '参数调整后即时重新分析',
-    subtitleSettings: '支持日、周、月周期与 20–1000 根 K 线；设置保存在 Chrome Storage。',
+    subtitleSettings:
+      '支持 30 分钟、1 小时、4 小时、日、周、月周期与最多 1000 根 K 线；分析至少需要 20 根。',
     titleTonghuashun: '浏览同花顺个股时直接分析',
     subtitleTonghuashun: '根据当前证券代码获取公开 K 线；同花顺图表采用红涨绿跌的市场配色。',
     features: ['量价分析', '维科夫分析', '本地处理'],

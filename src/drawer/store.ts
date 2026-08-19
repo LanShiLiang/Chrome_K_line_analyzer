@@ -52,6 +52,16 @@ export const isSameTabContext = (
 export const hasConflictingPage = (left?: DrawerState['page'], right?: DrawerState['page']) =>
   Boolean(left?.url && right?.url && !isSameMarketPage(left.url, right.url));
 
+export const selectionUpdatePatch = (
+  selection: SelectionRange,
+): Partial<Pick<DrawerState, 'selection' | 'error' | 'marketData' | 'result' | 'busy'>> => ({
+  selection,
+  error: undefined,
+  ...(selection.recognitionStatus === 'capturing'
+    ? { marketData: undefined, result: undefined, busy: false }
+    : {}),
+});
+
 export const useDrawerStore = create<DrawerState>((set) => ({
   candidates: [],
   config: DEFAULT_CONFIG,

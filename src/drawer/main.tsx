@@ -22,19 +22,28 @@ import type { MessageKey } from '../shared/i18n-types';
 import { detectMarketSite, isSameMarketPage, type MarketSite } from '../core/adapter/sites';
 import {
   getAnalysisConfigError,
+  getRunConfigError,
   loadStoredUserConfig,
   resolveUserConfigForSite,
 } from '../core/config';
 import {
   DEFAULT_CONFIG,
   MAX_ANALYSIS_CANDLES,
-  MIN_ANALYSIS_CANDLES,
+  MIN_CANDLE_COUNT_INPUT,
+  type AnalysisPeriod,
   type MarketData,
   type RawMarketPayload,
+  type SelectionRange,
   type UserConfig,
   type WyckoffAnalysisResult,
 } from '../core/model/types';
-import { hasConflictingPage, isSameTabContext, resetTabScopedState, useDrawerStore } from './store';
+import {
+  hasConflictingPage,
+  isSameTabContext,
+  resetTabScopedState,
+  selectionUpdatePatch,
+  useDrawerStore,
+} from './store';
 import { getMarketColorTheme } from './market-colors';
 import {
   ACTION_MESSAGE_KEYS,
@@ -213,15 +222,20 @@ function App() {
       }
     })();
     const messageListener = (m: ExtensionMessage, sender: chrome.runtime.MessageSender) => {
-      if (sender.tab?.id === undefined) return;
       const current = useDrawerStore.getState();
-      if (sender.tab.id !== current.activeTabId) return;
+      const messageTabId = sender.tab?.id ?? m.tabId;
+      if (messageTabId === undefined || messageTabId !== current.activeTabId) return;
+      if (m.type === 'SELECTION_UPDATED') {
+        const selection = m.payload as SelectionRange;
+        current.set(selectionUpdatePatch(selection));
+        return;
+      }
       if (m.type === 'PAGE_DETECTED') {
         const page = m.payload as ActiveTabContext['page'];
         if (!page?.url) return;
         analysisSequence.current += 1;
-        current.set(resetTabScopedState(sender.tab.id, page));
-        void syncActiveTab(sender.tab.id);
+        current.set(resetTabScopedState(messageTabId, page));
+        void syncActiveTab(messageTabId);
         return;
       }
       if (m.type === 'MARKET_DATA_CANDIDATES' && Array.isArray(m.payload))
@@ -281,12 +295,14 @@ function App() {
         throw new Error(t('error_tab_switching'));
       const requestSite = detectMarketSite(page?.url);
       const requestConfig = resolveUserConfigForSite(requestSite, config);
-      const configError = getAnalysisConfigError(requestConfig);
+      const selectionMode = Boolean(current.selection);
+      const configError = getRunConfigError(requestConfig, selectionMode);
       if (configError) throw new Error(translateMessage(configError));
       if (showBusy) current.set({ busy: true, error: undefined });
       if (
-        requestConfig.analysisPeriod !== current.config.analysisPeriod ||
-        requestConfig.analysisCandleCount !== current.config.analysisCandleCount
+        !selectionMode &&
+        (requestConfig.analysisPeriod !== current.config.analysisPeriod ||
+          requestConfig.analysisCandleCount !== current.config.analysisCandleCount)
       ) {
         current.set({ config: requestConfig });
         if (extensionReady()) void chrome.storage.local.set({ 'kla:userConfig': requestConfig });
@@ -423,6 +439,7 @@ function App() {
           {s.busy ? t('drawer_analyzing') : t('drawer_start_analysis')}
         </button>
       </div>
+      <SelectionSummary selection={s.selection} />
       {s.error && (
         <p className="error">
           <ShieldAlert />
@@ -622,6 +639,9 @@ function Config({
                   )
                 }
               >
+                <option value="30m">{t('period_30_minutes')}</option>
+                <option value="1h">{t('period_hour')}</option>
+                <option value="4h">{t('period_4_hours')}</option>
                 <option value="1d">{t('period_day')}</option>
                 <option value="1w">{t('period_week')}</option>
                 <option value="1M">{t('period_month')}</option>
@@ -631,7 +651,7 @@ function Config({
               {t('drawer_analysis_candle_count')}
               <input
                 type="number"
-                min={MIN_ANALYSIS_CANDLES}
+                min={MIN_CANDLE_COUNT_INPUT}
                 max={MAX_ANALYSIS_CANDLES}
                 step={1}
                 value={s.config.analysisCandleCount}
@@ -645,6 +665,55 @@ function Config({
         )}
       </div>
     </details>
+  );
+}
+
+const PERIOD_MESSAGE_KEYS: Record<AnalysisPeriod, MessageKey> = {
+  '30m': 'period_30_minutes',
+  '1h': 'period_hour',
+  '4h': 'period_4_hours',
+  '1d': 'period_day',
+  '1w': 'period_week',
+  '1M': 'period_month',
+};
+
+function SelectionSummary({ selection }: { selection?: SelectionRange }) {
+  if (!selection) return null;
+  if (selection.recognitionStatus === 'capturing')
+    return <section className="selection-summary">{t('drawer_selection_capturing')}</section>;
+  if (selection.recognitionStatus === 'failed')
+    return <section className="selection-summary warning">{t('drawer_selection_failed')}</section>;
+  const interpretation = selection.interpretation;
+  const formatDate = (timestamp: number, period: AnalysisPeriod) =>
+    new Intl.DateTimeFormat(chrome.i18n.getUILanguage(), {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      ...(period === '30m' || period === '1h' || period === '4h'
+        ? { hour: '2-digit', minute: '2-digit' }
+        : {}),
+    }).format(timestamp);
+  return (
+    <section
+      className="selection-summary"
+      data-testid="selection-summary"
+      data-detected-candles={selection.image?.detectedCandles ?? 0}
+    >
+      <h2>{t('drawer_selection_ready')}</h2>
+      {selection.image?.dataUrl && (
+        <img src={selection.image.dataUrl} alt={t('drawer_selection_ready')} />
+      )}
+      <p>
+        {interpretation
+          ? t('drawer_selection_detected', [
+              t(PERIOD_MESSAGE_KEYS[interpretation.period]),
+              interpretation.candleCount,
+              formatDate(interpretation.startTime, interpretation.period),
+              formatDate(interpretation.endTime, interpretation.period),
+            ])
+          : t('drawer_selection_image_candles', [selection.image?.detectedCandles ?? 0])}
+      </p>
+    </section>
   );
 }
 createRoot(document.getElementById('root')!).render(

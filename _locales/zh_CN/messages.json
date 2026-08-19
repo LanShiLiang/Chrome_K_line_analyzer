@@ -22,6 +22,22 @@
   "drawer_reset_analyzer": { "message": "重置分析台" },
   "drawer_privacy": { "message": "行情与分析结果不上传至开发者服务器。" },
   "drawer_select_candles": { "message": "框选 K 线" },
+  "drawer_selection_capturing": { "message": "正在识别框选图像…" },
+  "drawer_selection_ready": { "message": "已框选图表" },
+  "drawer_selection_image_candles": {
+    "message": "图像已识别 $COUNT$ 组 K 线颜色，开始分析后将匹配日期并获取行情。",
+    "placeholders": { "count": { "content": "$1", "example": "64" } }
+  },
+  "drawer_selection_failed": { "message": "框选图像识别失败，请重新框选图表。" },
+  "drawer_selection_detected": {
+    "message": "$PERIOD$ · $COUNT$ 根 · $START$ 至 $END$",
+    "placeholders": {
+      "period": { "content": "$1", "example": "30 分钟" },
+      "count": { "content": "$2", "example": "64" },
+      "start": { "content": "$3", "example": "2026-08-01" },
+      "end": { "content": "$4", "example": "2026-08-20" }
+    }
+  },
   "drawer_analyzing": { "message": "分析中" },
   "drawer_start_analysis": { "message": "开始分析" },
   "drawer_empty_title": { "message": "等待分析" },
@@ -61,6 +77,9 @@
     "placeholders": { "count": { "content": "$1", "example": "200" } }
   },
   "drawer_waiting_chart_data": { "message": "等待图表数据" },
+  "period_30_minutes": { "message": "30 分钟" },
+  "period_hour": { "message": "1 小时" },
+  "period_4_hours": { "message": "4 小时" },
   "period_day": { "message": "日线" },
   "period_week": { "message": "周线" },
   "period_month": { "message": "月线" },
@@ -142,6 +161,27 @@
   "error_sync_tab": { "message": "同步当前标签页失败。" },
   "error_initialize_page": { "message": "初始化页面状态失败。" },
   "error_start_selection": { "message": "无法启动 K 线框选。" },
+  "error_selection_capture_failed": {
+    "message": "无法截取框选图像。请保持行情标签页处于活动状态后重新框选。"
+  },
+  "error_selection_period_unrecognized": {
+    "message": "无法识别框选图表的周期。请让周期控件保持可见后重新框选 K 线。"
+  },
+  "error_selection_period_unsupported": {
+    "message": "框选图表的 $PERIOD$ 周期暂不支持，当前最小支持 30 分钟。",
+    "placeholders": { "period": { "content": "$1", "example": "15m" } }
+  },
+  "error_selection_range_unrecognized": {
+    "message": "无法从图像匹配 K 线日期。请框入清晰的红绿 K 线实体后重新选择。"
+  },
+  "error_selection_candles_insufficient": {
+    "message": "框选区仅识别到 $ACTUAL$ 根 K 线，分析至少需要 $REQUIRED$ 根；请框选大于 $MINIMUM_INPUT$ 根。",
+    "placeholders": {
+      "actual": { "content": "$1", "example": "12" },
+      "required": { "content": "$2", "example": "20" },
+      "minimum_input": { "content": "$3", "example": "19" }
+    }
+  },
   "error_tab_switching": { "message": "当前标签页正在切换，请稍后重新分析。" },
   "error_result_context_changed": {
     "message": "分析结果与当前标签页不一致，已阻止展示旧页面数据。"
@@ -162,7 +202,7 @@
   "error_config_period_invalid": { "message": "行情周期无效，请重新选择。" },
   "error_config_candle_count_integer": { "message": "分析 K 线数量必须是整数。" },
   "error_config_candle_count_min": {
-    "message": "分析 K 线数量不能少于 $COUNT$ 根。",
+    "message": "当前数据不足以分析，至少需要 $COUNT$ 根 K 线，请输入更大的数值。",
     "placeholders": { "count": { "content": "$1", "example": "20" } }
   },
   "error_config_candle_count_max": {

@@ -11,7 +11,7 @@ Use the extension primarily on Binance and Tonghuashun market pages:
 - **Binance example:** [BTC/USDT Spot](https://www.binance.com/en/trade/BTC_USDT?type=spot), for crypto candlestick and volume analysis.
 - **Tonghuashun example:** [Kweichow Moutai 600519](https://stockpage.10jqka.com.cn/600519/), for mainland China A-share analysis with red-up and green-down market colors.
 
-Open and refresh a supported market page, click the K Line Analyzer toolbar icon, choose **Open Side Panel**, and then select **Start Analysis**. The extension identifies the current symbol, obtains the corresponding public market data, and generates the result and chart locally.
+Open and refresh a supported market page, click the K Line Analyzer toolbar icon, choose **Open Side Panel**, frame the candlesticks you want to inspect, and then select **Start Analysis**. The extension locally reads the selected chart image, matches its period and dates, requests the corresponding public market data, and generates the result and chart locally.
 
 TradingView remains a compatibility path. It only analyzes market data already streamed by the current page and passively captured by the extension. Availability depends on the current chart data; Binance or Tonghuashun is recommended for normal use.
 
@@ -27,7 +27,8 @@ TradingView remains a compatibility path. It only analyzes market data already s
 - Explainable accumulation, Spring test, markup, distribution, and markdown detection.
 - Buy, sell, hold, and risk signals with reason codes and confidence.
 - Lightweight Charts candlestick and volume rendering.
-- Daily, weekly, and monthly periods with a configurable 20–1000 candle window.
+- 30-minute, 1-hour, 4-hour, daily, weekly, and monthly periods with a configurable window up to 1000 candles; calculations clearly require at least 20.
+- Local selected-image recognition that matches candle colors to market dates without uploading screenshots.
 - One `analysisCandleCount` snapshot drives both analysis and chart rendering.
 - User settings remain in `chrome.storage.local`.
 

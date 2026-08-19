@@ -8,7 +8,7 @@ import {
 import type { MarketSite } from './adapter/sites';
 import { message, type LocalizedMessage } from '../shared/i18n-types';
 
-const ANALYSIS_PERIODS: readonly AnalysisPeriod[] = ['1d', '1w', '1M'];
+export const ANALYSIS_PERIODS: readonly AnalysisPeriod[] = ['30m', '1h', '4h', '1d', '1w', '1M'];
 
 export const isAnalysisPeriod = (value: unknown): value is AnalysisPeriod =>
   ANALYSIS_PERIODS.some((period) => period === value);
@@ -65,3 +65,6 @@ export function getAnalysisConfigError(config: UserConfig): LocalizedMessage | u
   if (config.analysisCandleCount > MAX_ANALYSIS_CANDLES)
     return message('error_config_candle_count_max', [MAX_ANALYSIS_CANDLES]);
 }
+
+export const getRunConfigError = (config: UserConfig, selectionMode: boolean) =>
+  selectionMode ? undefined : getAnalysisConfigError(config);

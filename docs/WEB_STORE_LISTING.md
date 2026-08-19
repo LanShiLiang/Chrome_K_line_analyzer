@@ -29,7 +29,8 @@ This document is the English-default source for the Chrome Web Store Developer D
 > - Volume-Price Analysis: normalizes and evaluates OHLCV and volume changes.
 > - Wyckoff Analysis: identifies accumulation, Spring tests, markup, distribution, and markdown structures.
 > - Local Processing: strategy calculations and results stay in the browser and are not uploaded to a developer server.
-> - Adjustable Context: supports daily, weekly, and monthly periods with 20–1000 candles.
+> - Adjustable Context: supports 30-minute, 1-hour, 4-hour, daily, weekly, and monthly periods with up to 1000 candles and a clear 20-candle calculation minimum.
+> - Local Selection Recognition: reads only the chart area explicitly selected by the user and matches candle colors to dates without uploading the screenshot.
 > - Explainable Results: shows reason codes, evidence, confidence, and risk warnings instead of placing orders or promising returns.
 > - Localized Interface: English is the default, with Simplified Chinese selected automatically from the Chrome UI language.
 >
@@ -49,16 +50,16 @@ Do not add unsubstantiated or misleading claims such as “AI stock oracle,” �
 
 ## Permissions
 
-| Permission or origin                | User-facing function                                                               | Why it is required                                                      |
-| ----------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `storage`                           | Saves the analysis period and candle count                                         | Uses only `chrome.storage.local`; synchronization is not enabled        |
-| `activeTab`                         | Identifies the active supported market tab after the user opens the panel          | Binds each request and result to the user's current tab                 |
-| `sidePanel`                         | Displays the analysis workbench beside the market page                             | The Side Panel is the primary extension interface                       |
-| `https://www.binance.com/*`         | Recognizes the current Binance market page and receives page context               | Runs only on explicitly supported Binance pages                         |
-| `https://*.tradingview.com/*`       | Read-only observes market messages already streamed to the current chart           | The extension does not create an active TradingView market-data request |
-| `https://stockpage.10jqka.com.cn/*` | Recognizes the current Tonghuashun stock page                                      | Runs only on explicitly supported Tonghuashun pages                     |
-| `https://data-api.binance.vision/*` | Requests public candles for the current Binance pair when the user starts analysis | Requests use `credentials: "omit"`                                      |
-| `https://d.10jqka.com.cn/*`         | Requests public candles for the current Tonghuashun stock code                     | Requests use `credentials: "omit"`                                      |
+| Permission or origin                | User-facing function                                                                             | Why it is required                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `storage`                           | Saves the analysis period and candle count                                                       | Uses only `chrome.storage.local`; synchronization is not enabled           |
+| `activeTab`                         | Identifies the active supported tab and captures only the chart area the user explicitly selects | Binds data to the current tab and enables local selected-image recognition |
+| `sidePanel`                         | Displays the analysis workbench beside the market page                                           | The Side Panel is the primary extension interface                          |
+| `https://www.binance.com/*`         | Recognizes the current Binance market page and receives page context                             | Runs only on explicitly supported Binance pages                            |
+| `https://*.tradingview.com/*`       | Read-only observes market messages already streamed to the current chart                         | The extension does not create an active TradingView market-data request    |
+| `https://stockpage.10jqka.com.cn/*` | Recognizes the current Tonghuashun stock page                                                    | Runs only on explicitly supported Tonghuashun pages                        |
+| `https://data-api.binance.vision/*` | Requests public candles for the current Binance pair when the user starts analysis               | Requests use `credentials: "omit"`                                         |
+| `https://d.10jqka.com.cn/*`         | Requests public candles for the current Tonghuashun stock code                                   | Requests use `credentials: "omit"`                                         |
 
 The production Manifest does not contain `localhost`, `127.0.0.1`, `<all_urls>`, Cookie, History, Web Request, or remote-code permissions.
 
@@ -68,7 +69,7 @@ Dashboard labels can change. Complete the current fields using the following beh
 
 ### Data types to disclose
 
-1. **Website content:** the public market symbol, OHLCV, and volume data from the supported page or market response, used only to generate the local analysis requested by the user.
+1. **Website content:** the explicitly selected chart-area screenshot, detected candle colors, public market symbol, OHLCV, and volume data from the supported page or market response, used only to match dates and generate the local analysis requested by the user.
 2. **Web browsing activity:** the domain, URL, and title of the current supported page, used only to identify the site, symbol, and correct active tab. The extension does not read general browsing history and does not run on unsupported pages.
 3. **User settings**, if the Dashboard provides that category: analysis period and candle count, stored only in `chrome.storage.local`.
 
@@ -77,7 +78,7 @@ Do not select personally identifiable information, precise location, authenticat
 ### Data use
 
 - Data is used only for the disclosed single purpose of providing local market analysis on supported pages.
-- Market data, page context, and analysis results are not uploaded to a developer server.
+- Selected-area screenshots, market data, page context, and analysis results are not uploaded to a developer server; screenshots remain only in extension runtime memory.
 - Data is not sold or used for advertising, credit assessment, user profiling, or unrelated analytics.
 - Developers cannot manually read a user's local market data, browsing context, settings, or results.
 - User settings remain in local Chrome storage until reset, extension data is cleared, or the extension is uninstalled.

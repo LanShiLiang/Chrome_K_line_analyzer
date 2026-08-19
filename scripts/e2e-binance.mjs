@@ -444,6 +444,240 @@ try {
     throw new Error('策略参数变更后后台没有返回 64 根 K 线');
   await sidePanel.screenshot(resultPath('64-candles'));
 
+  for (const period of ['30m', '1h', '4h']) {
+    await sidePanel.evaluate(`(() => {
+      const select = document.querySelector('select');
+      if (!(select instanceof HTMLSelectElement)) throw new Error('未找到行情周期选择框');
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+      setter?.call(select, ${JSON.stringify(period)});
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()`);
+    await sidePanel.waitFor(
+      `(() => {
+        const trace = globalThis.__klaE2EAnalysisTraces.at(-1);
+        return trace?.message?.payload?.config?.analysisPeriod === ${JSON.stringify(period)} &&
+          trace?.response?.ok === true &&
+          trace.response.data.marketData?.period === ${JSON.stringify(period)} &&
+          trace.response.data.marketData?.candles?.length === 64 &&
+          Boolean(document.querySelector('[data-testid="analysis-action"]'));
+      })()`,
+      `${period} 周期分析`,
+    );
+  }
+  await sidePanel.screenshot(resultPath('intraday-periods'));
+
+  await sidePanel.evaluate(`(() => {
+    const input = document.querySelector('input[type="number"]');
+    if (!(input instanceof HTMLInputElement)) throw new Error('未找到分析 K 线数量输入框');
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(input, '10');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })()`);
+  await sidePanel.waitFor(
+    `(() => {
+      const input = document.querySelector('input[type="number"]');
+      const error = document.querySelector('.error')?.textContent ?? '';
+      return input instanceof HTMLInputElement && input.value === '10' &&
+        input.min === '1' && error.includes('20') && !document.querySelector('.market-chart');
+    })()`,
+    '允许输入小于 20 并显示最低分析数量',
+  );
+  await sidePanel.screenshot(resultPath('10-candles-validation'));
+
+  if (profileName === 'binance') {
+    const response = await fetch(
+      'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=30m&limit=300',
+    );
+    if (!response.ok) throw new Error(`无法准备 30m 框选 E2E 行情：HTTP ${response.status}`);
+    const fixtureRows = await response.json();
+    const chartBounds = await marketPage.evaluate((rows) => {
+      const selected = rows.slice(160, 220);
+      const canvas = document.createElement('canvas');
+      canvas.dataset.klaE2eSelectionChart = 'true';
+      canvas.width = 900;
+      canvas.height = 420;
+      Object.assign(canvas.style, {
+        position: 'fixed',
+        left: '80px',
+        top: '110px',
+        width: '900px',
+        height: '420px',
+        zIndex: '2147483000',
+        border: '1px solid #33414b',
+        background: '#101820',
+      });
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('无法创建 30m 框选 E2E Canvas');
+      context.fillStyle = '#101820';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      const lows = selected.map((row) => Number(row[3]));
+      const highs = selected.map((row) => Number(row[2]));
+      const low = Math.min(...lows);
+      const high = Math.max(...highs);
+      const toY = (price) => 30 + ((high - price) / Math.max(high - low, 1)) * 340;
+      const step = 840 / selected.length;
+      selected.forEach((row, index) => {
+        const open = Number(row[1]);
+        const candleHigh = Number(row[2]);
+        const candleLow = Number(row[3]);
+        const close = Number(row[4]);
+        const color = close >= open ? '#0ECB81' : '#F6465D';
+        const x = 30 + index * step + step / 2;
+        context.strokeStyle = color;
+        context.fillStyle = color;
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(x, toY(candleHigh));
+        context.lineTo(x, toY(candleLow));
+        context.stroke();
+        const bodyTop = Math.min(toY(open), toY(close));
+        const bodyHeight = Math.max(3, Math.abs(toY(open) - toY(close)));
+        context.fillRect(x - 4, bodyTop, 8, bodyHeight);
+      });
+      const period = document.createElement('button');
+      period.textContent = '30m';
+      period.setAttribute('aria-selected', 'true');
+      period.dataset.active = 'true';
+      Object.assign(period.style, {
+        position: 'fixed',
+        left: '80px',
+        top: '70px',
+        zIndex: '2147483001',
+      });
+      document.documentElement.append(canvas, period);
+      window.postMessage(
+        {
+          channel: 'KLA_MARKET_RESPONSE',
+          payload: {
+            id: 'kla-e2e-binance-30m',
+            siteId: 'binance',
+            symbol: 'BTCUSDT',
+            period: '30m',
+            pageUrl: location.href,
+            url: 'wss://stream.binance.com/ws/btcusdt@kline_30m',
+            method: 'WS',
+            status: 101,
+            requestAt: Date.now() - 1000,
+            responseAt: Date.now() + 60_000,
+            source: 'websocket',
+            raw: rows,
+            confidence: 100,
+          },
+        },
+        location.origin,
+      );
+      const rect = canvas.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    }, fixtureRows);
+    await marketPage.waitForTimeout(300);
+    // 本 E2E 直接打开 popup.html，未经过 Chrome 工具栏动作，因此不会获得 activeTab
+    // 的临时截图授权。注入同一活动页的真实视口截图，只替代权限入口，后续裁剪、
+    // 像素识别、消息同步仍完整运行生产代码。
+    const viewportImage = `data:image/png;base64,${(
+      await marketPage.screenshot({ type: 'png' })
+    ).toString('base64')}`;
+    await serviceWorker.evaluate((dataUrl) => {
+      chrome.tabs.captureVisibleTab = async () => dataUrl;
+    }, viewportImage);
+    await sidePanel.evaluate(`(() => {
+      const button = document.querySelector('[data-testid="select-candles"]');
+      if (!(button instanceof HTMLButtonElement) || button.disabled)
+        throw new Error('框选 K 线按钮不可用');
+      button.click();
+      return true;
+    })()`);
+    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', { timeout: 5_000 });
+    const startX = chartBounds.left + 20;
+    const endX = chartBounds.left + chartBounds.width - 20;
+    const startY = chartBounds.top + 10;
+    const endY = chartBounds.top + chartBounds.height - 30;
+    await marketPage.mouse.move(startX, startY);
+    await marketPage.mouse.down();
+    await marketPage.mouse.move(endX, endY, { steps: 12 });
+    await marketPage.mouse.up();
+    await sidePanel.waitFor(
+      `(() => {
+        const summary = document.querySelector('[data-testid="selection-summary"]');
+        const image = summary?.querySelector('img');
+        return Number(summary?.getAttribute('data-detected-candles') ?? 0) >= 20 &&
+          image instanceof HTMLImageElement && image.src.startsWith('data:image/png;base64,');
+      })()`,
+      '本地截取并识别框选 K 线图像',
+    );
+    await sidePanel.screenshot(resultPath('selection-recognized'));
+    await sidePanel.evaluate(`(() => {
+      const button = document.querySelector('[data-testid="run-analysis"]');
+      if (!(button instanceof HTMLButtonElement) || button.disabled)
+        throw new Error('框选后的开始分析按钮不可用');
+      button.click();
+      return true;
+    })()`);
+    await sidePanel.waitFor(
+      `(() => {
+        const trace = globalThis.__klaE2EAnalysisTraces.at(-1);
+        const interpretation = trace?.response?.data?.selection?.interpretation;
+        const marketData = trace?.response?.data?.marketData;
+        return trace?.response?.ok === true &&
+          trace.response.data.context?.mode === 'selection' &&
+          interpretation?.period === '30m' &&
+          interpretation.candleCount >= 20 &&
+          interpretation.startTime < interpretation.endTime &&
+          marketData?.period === '30m' &&
+          marketData.candles?.length === interpretation.candleCount &&
+          Boolean(document.querySelector('[data-testid="analysis-action"]')) &&
+          document.querySelector('[data-testid="selection-summary"]')?.textContent?.includes('30');
+      })()`,
+      '30m 框选日期、区间行情与分析结果闭环',
+    );
+    await sidePanel.screenshot(resultPath('selection-analysis'));
+
+    await sidePanel.evaluate(`(() => {
+      const button = document.querySelector('[data-testid="select-candles"]');
+      if (!(button instanceof HTMLButtonElement) || button.disabled)
+        throw new Error('第二次框选按钮不可用');
+      button.click();
+      return true;
+    })()`);
+    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', { timeout: 5_000 });
+    const smallStartX = chartBounds.left + 30;
+    const smallEndX = smallStartX + (840 / 60) * 10;
+    await marketPage.mouse.move(smallStartX, chartBounds.top + 10);
+    await marketPage.mouse.down();
+    await marketPage.mouse.move(smallEndX, chartBounds.top + chartBounds.height - 30, {
+      steps: 8,
+    });
+    await marketPage.mouse.up();
+    await sidePanel.waitFor(
+      `(() => {
+        const summary = document.querySelector('[data-testid="selection-summary"]');
+        const count = Number(summary?.getAttribute('data-detected-candles') ?? 0);
+        return count >= 8 && count < 20;
+      })()`,
+      '识别少于 20 根的小选区',
+    );
+    await sidePanel.evaluate(`(() => {
+      const button = document.querySelector('[data-testid="run-analysis"]');
+      if (!(button instanceof HTMLButtonElement) || button.disabled)
+        throw new Error('小选区分析按钮不可用');
+      button.click();
+      return true;
+    })()`);
+    await sidePanel.waitFor(
+      `(() => {
+        const trace = globalThis.__klaE2EAnalysisTraces.at(-1);
+        const error = document.querySelector('.error')?.textContent ?? '';
+        return trace?.response?.ok === false &&
+          trace.response.error?.code === 'E_SELECTION_CANDLES_INSUFFICIENT' &&
+          error.includes('20') && error.includes('19') &&
+          !document.querySelector('.market-chart') && !document.querySelector('.signal');
+      })()`,
+      '小选区明确提示至少 20 根并要求大于 19 根',
+    );
+    await sidePanel.screenshot(resultPath('selection-insufficient'));
+  }
+
   await sidePanel.evaluate(`(() => {
     const button = document.querySelector('[data-testid="reset-analyzer"]');
     if (!(button instanceof HTMLButtonElement)) throw new Error('未找到重置分析台按钮');
@@ -457,7 +691,8 @@ try {
         input instanceof HTMLInputElement &&
         input.value === '200' &&
         !document.querySelector('.market-chart') &&
-        !document.querySelector('.signal');
+        !document.querySelector('.signal') &&
+        !document.querySelector('[data-testid="selection-summary"]');
     })()`,
     '重置分析台',
   );

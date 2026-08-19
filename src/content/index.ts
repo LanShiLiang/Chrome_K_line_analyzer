@@ -1,6 +1,7 @@
 import type { RawMarketPayload, SelectionRange } from '../core/model/types';
 import { isRawMarketPayload } from '../shared/guards';
 import { createMessage, type ExtensionMessage } from '../shared/messages';
+import { extractAnalysisPeriods } from '../core/selection/period';
 
 const CHANNEL = 'KLA_MARKET_RESPONSE';
 const CANDIDATE_BROADCAST_INTERVAL_MS = 100;
@@ -78,10 +79,11 @@ const onRuntimeMessage = (
 chrome.runtime.onMessage.addListener(onRuntimeMessage);
 
 function beginSelection(): Promise<SelectionRange | null> {
-  // 遮罩只记录视口坐标；它不读取或修改宿主页面的图表数据。
+  // 遮罩记录视口和图表范围；截图由 Service Worker 在松开鼠标后本地截取。
   cancelActiveSelection?.();
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
+    overlay.dataset.klaSelectionOverlay = 'true';
     Object.assign(overlay.style, {
       position: 'fixed',
       inset: '0',
@@ -139,16 +141,110 @@ function beginSelection(): Promise<SelectionRange | null> {
         finish(null);
         return;
       }
+      overlay.style.display = 'none';
+      const chartRect = findChartRect({ left, top, width, height });
       finish({
         pageUrl: location.href,
         tabId: -1,
         viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY, devicePixelRatio },
         rect: { left, top, width, height },
+        chartRect,
+        periodHints: collectPeriodHints(chartRect),
         capturedAt: Date.now(),
+        recognitionStatus: 'capturing',
       });
     };
     window.addEventListener('keydown', onKeyDown);
   });
+}
+
+type ViewRect = { left: number; top: number; width: number; height: number };
+const containsRect = (outer: DOMRect, inner: ViewRect) =>
+  outer.left <= inner.left + 2 &&
+  outer.top <= inner.top + 2 &&
+  outer.right >= inner.left + inner.width - 2 &&
+  outer.bottom >= inner.top + inner.height - 2;
+
+function findChartRect(selection: ViewRect): ViewRect | undefined {
+  const centerX = selection.left + selection.width / 2;
+  const centerY = selection.top + selection.height / 2;
+  const elements = document.elementsFromPoint(centerX, centerY);
+  const candidates = new Set<Element>();
+  for (const element of elements) {
+    candidates.add(element);
+    let parent = element.parentElement;
+    for (let depth = 0; parent && depth < 8; depth += 1, parent = parent.parentElement)
+      candidates.add(parent);
+  }
+  for (const canvas of document.querySelectorAll('canvas,svg')) {
+    const bounds = canvas.getBoundingClientRect();
+    if (containsRect(bounds, selection)) candidates.add(canvas);
+  }
+  const ranked = [...candidates]
+    .map((element) => ({ element, bounds: element.getBoundingClientRect() }))
+    .filter(
+      ({ bounds }) =>
+        containsRect(bounds, selection) &&
+        bounds.width >= 120 &&
+        bounds.height >= 100 &&
+        bounds.left < innerWidth &&
+        bounds.top < innerHeight,
+    )
+    .sort((leftItem, rightItem) => {
+      const leftCanvas = /^(CANVAS|SVG)$/.test(leftItem.element.tagName) ? -1 : 0;
+      const rightCanvas = /^(CANVAS|SVG)$/.test(rightItem.element.tagName) ? -1 : 0;
+      return (
+        leftCanvas - rightCanvas ||
+        leftItem.bounds.width * leftItem.bounds.height -
+          rightItem.bounds.width * rightItem.bounds.height
+      );
+    });
+  const bounds = ranked[0]?.bounds;
+  return bounds
+    ? { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height }
+    : undefined;
+}
+
+function collectPeriodHints(chartRect?: ViewRect): NonNullable<SelectionRange['periodHints']> {
+  const hints: NonNullable<SelectionRange['periodHints']> = [];
+  const add = (
+    text: string,
+    confidence: number,
+    source: NonNullable<SelectionRange['periodHints']>[number]['source'],
+  ) => {
+    for (const period of extractAnalysisPeriods(text)) hints.push({ period, confidence, source });
+  };
+  const selectedControls = document.querySelectorAll(
+    '[aria-selected="true"],[aria-pressed="true"],[data-active="true"],button[class*="active" i],[role="button"][class*="selected" i]',
+  );
+  for (const element of [...selectedControls].slice(0, 100)) {
+    const bounds = element.getBoundingClientRect();
+    if (
+      chartRect &&
+      (bounds.right < chartRect.left - 160 ||
+        bounds.left > chartRect.left + chartRect.width + 160 ||
+        bounds.bottom < chartRect.top - 160 ||
+        bounds.top > chartRect.top + chartRect.height + 160)
+    )
+      continue;
+    add(
+      `${element.textContent ?? ''} ${element.getAttribute('aria-label') ?? ''} ${element.getAttribute('title') ?? ''}`,
+      95,
+      'selected-control',
+    );
+  }
+  try {
+    const url = new URL(location.href);
+    for (const key of ['interval', 'period', 'resolution', 'timeframe']) {
+      const value = url.searchParams.get(key);
+      if (value) add(value, 80, 'page');
+    }
+  } catch {
+    // location.href is expected to be valid, but selection must still work on unusual documents.
+  }
+  return [...new Map(hints.map((hint) => [hint.period, hint])).values()].sort(
+    (left, right) => right.confidence - left.confidence,
+  );
 }
 
 sendToBackground(

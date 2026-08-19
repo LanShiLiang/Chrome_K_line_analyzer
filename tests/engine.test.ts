@@ -8,6 +8,7 @@ import {
 import { assessQuality } from '../src/core/adapter/normalize';
 import {
   getAnalysisConfigError,
+  getRunConfigError,
   loadStoredUserConfig,
   mergeUserConfig,
   resolveAnalysisConfigForMarket,
@@ -149,6 +150,7 @@ describe('analyzeMarket', () => {
         analysisCandleCount: 1001,
       }),
     ).toEqual(message('error_config_candle_count_max', [1000]));
+    expect(getRunConfigError({ ...DEFAULT_CONFIG, analysisCandleCount: 10 }, true)).toBeUndefined();
     expect(new AnalysisInputError('E_TEST', message('error_analysis_failed'))).toMatchObject({
       code: 'E_TEST',
     });

@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { hasConflictingPage, isSameTabContext, resetTabScopedState } from '../src/drawer/store';
+import {
+  hasConflictingPage,
+  isSameTabContext,
+  resetTabScopedState,
+  selectionUpdatePatch,
+} from '../src/drawer/store';
 
 describe('drawer active-tab context', () => {
+  it('clears stale analysis while a new selection image is being recognized', () => {
+    expect(selectionUpdatePatch({ recognitionStatus: 'capturing' } as never)).toMatchObject({
+      marketData: undefined,
+      result: undefined,
+      busy: false,
+      error: undefined,
+    });
+  });
   it('treats both tab id and page URL as result ownership boundaries', () => {
     const current = { activeTabId: 7, page: { url: 'https://www.binance.com/a', title: 'A' } };
     expect(isSameTabContext(current, 7, current.page)).toBe(true);

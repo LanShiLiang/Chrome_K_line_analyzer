@@ -153,6 +153,21 @@ h2 {
   overflow: hidden;
   border-radius: 8px;
 }
+.selection-summary img {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-inset);
+}
+.selection-summary p {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
 /* 通用操作控件 */
 button {
   border: 1px solid var(--border-strong);

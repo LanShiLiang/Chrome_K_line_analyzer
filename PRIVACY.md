@@ -16,14 +16,14 @@ K Line Analyzer has one purpose: to provide local candlestick, volume-price, and
 - 当前受支持页面的域名、URL、页面标题和由 URL 表示的市场标的，用于识别 Binance、TradingView 或同花顺行情页并将分析绑定到正确的标签页。
 - 公开市场行情数据，包括时间、开盘价、最高价、最低价、收盘价和成交量（OHLCV）。
 - 用户在扩展中选择的分析周期、K 线数量和其他策略设置。
-- 用户的页面框选坐标，仅用于当前标签页的交互确认。
+- 用户主动框选的图表区域、选区截图和由图像识别出的 K 线颜色序列，仅用于在当前标签页本地匹配周期与日期。
 
 The extension handles only the following data for that purpose:
 
 - The supported page's domain, URL, title, and market symbol represented in the URL, to recognize Binance, TradingView, or Tonghuashun pages and bind analysis to the correct tab.
 - Public market data, including timestamp, open, high, low, close, and volume (OHLCV).
 - Analysis period, candle count, and other strategy settings selected by the user.
-- Page-selection coordinates, used only to confirm the interaction in the current tab.
+- The chart area explicitly selected by the user, its selected-area screenshot, and the detected candle-color sequence, used only to match the period and dates locally in the current tab.
 
 ## 各站点用途 / Supported-site use
 
@@ -37,11 +37,11 @@ The extension handles only the following data for that purpose:
 
 ## 本地存储与保留 / Local storage and retention
 
-行情数据、页面上下文、框选坐标和分析结果只保留在扩展运行内存中，不写入开发者服务器或长期数据库。它们会在标签页状态被重置、扩展运行上下文结束或浏览器清理运行状态时消失。
+行情数据、页面上下文、框选坐标、选区截图、图像识别结果和分析结果只保留在扩展运行内存中，不写入开发者服务器、Chrome Storage 或长期数据库。它们会在标签页状态被重置、扩展运行上下文结束或浏览器清理运行状态时消失。
 
 用户设置保存在 `chrome.storage.local`，直到用户在扩展中重置设置、清除扩展数据或卸载扩展。扩展不使用 Chrome Storage Sync。
 
-Market data, page context, selection coordinates, and analysis results remain only in extension runtime memory. They are not written to a developer server or long-term database and disappear when tab state is reset, the extension runtime ends, or the browser clears runtime state.
+Market data, page context, selection coordinates, selected-area screenshots, image-recognition output, and analysis results remain only in extension runtime memory. They are not written to a developer server, Chrome Storage, or a long-term database and disappear when tab state is reset, the extension runtime ends, or the browser clears runtime state.
 
 User settings are stored in `chrome.storage.local` until the user resets settings in the extension, clears extension data, or uninstalls the extension. The extension does not use Chrome Storage Sync.
 

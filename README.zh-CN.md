@@ -11,7 +11,7 @@ Chrome Manifest V3 纯前端 K 线量价分析插件。插件按站点选择主�
 - **Binance 示例**：[BTC/USDT 现货行情](https://www.binance.com/en/trade/BTC_USDT?type=spot)。适合加密资产 K 线与成交量分析。
 - **同花顺示例**：[贵州茅台 600519](https://stockpage.10jqka.com.cn/600519/)。适合 A 股个股 K 线与成交量分析，并使用红涨绿跌配色。
 
-打开支持的行情页面并刷新后，点击浏览器工具栏中的 K Line Analyzer 图标，选择“打开侧边分析面板”，再点击“开始分析”。插件会识别当前交易对或证券代码，获取对应公开行情，并在本地生成结论、依据和图表。
+打开支持的行情页面并刷新后，点击浏览器工具栏中的 K Line Analyzer 图标，选择“打开侧边分析面板”，框选需要研究的 K 线，再点击“开始分析”。插件会在本地识别选区图像中的 K 线颜色、周期和日期，获取对应公开行情，并生成结论、依据和图表。
 
 TradingView 作为兼容路径，仅分析页面已经推送且被插件被动捕获的行情；其可用性取决于当前图表数据。首次使用和日常使用建议选择 Binance 或同花顺。
 
@@ -21,13 +21,13 @@ TradingView 作为兼容路径，仅分析页面已经推送且被插件被动�
 - 插件名称、简介、Popup、Side Panel、错误、警告、阶段、信号和分析依据完整国际化。
 - 页面主世界 WebSocket 只读监听，不修改宿主连接、收发帧和心跳。
 - 支持 Binance、同花顺和 TradingView：前两者优先使用公开行情接口，TradingView 使用页面 WebSocket 被动数据。
-- Content Script 框选遮罩，支持 Esc 取消。
+- Content Script 框选遮罩，支持 Esc 取消；选区截图仅在本地运行内存中识别，不上传。
 - Tab 级候选数据与分析上下文隔离。
 - 数组、对象两类常见 OHLCV 格式标准化。
 - 吸筹、Spring 测试、拉升、派发、下跌阶段识别。
 - 买入、卖出、观望、风险信号及原因码。
 - Lightweight Charts K 线与成交量展示。
-- 用户可配置日/周/月周期和 20–1000 根分析 K 线；分析与图表使用同一数据快照。
+- 用户可配置 30 分钟、1 小时、4 小时、日、周、月周期和最多 1000 根分析 K 线；输入框允许从 1 开始输入，计算时明确要求至少 20 根，分析与图表使用同一数据快照。
 - 策略阈值由分析引擎统一维护，用户设置保存在 Chrome Storage。
 
 ## 环境要求
@@ -61,7 +61,7 @@ npm run package
 ```
 
 `test:e2e:binance` 会构建并加载当前 `dist`，使用隔离的 Playwright Chromium 打开
-`https://www.binance.com/en/trade/BTC_USDT?type=spot`；`test:e2e:tonghuashun` 使用同样流程打开 `https://stockpage.10jqka.com.cn/600519/`。两项测试都会通过 Popup 用户手势打开真实 Chrome Side Panel，验证开始分析、分析结论与依据、200/64 根 K 线非空画布、参数即时重算、响应式布局和分析台重置。`test:e2e:release` 与 `npm run package` 将两个真实站点都设为发布门禁。
+`https://www.binance.com/en/trade/BTC_USDT?type=spot`；`test:e2e:tonghuashun` 使用同样流程打开 `https://stockpage.10jqka.com.cn/600519/`。两项测试都会通过 Popup 用户手势打开真实 Chrome Side Panel，验证开始分析、分析结论与依据、200/64 根 K 线非空画布、小于 20 根的可见校验、响应式布局和分析台重置；Binance 还验证真实选区截图与像素识别。`test:e2e:release` 与 `npm run package` 将两个真实站点都设为发布门禁。
 
 ## Chrome Web Store 发布材料
 

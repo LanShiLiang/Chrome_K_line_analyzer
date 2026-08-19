@@ -28,6 +28,24 @@
     "message": "Market data and analysis results are not uploaded to a developer server."
   },
   "drawer_select_candles": { "message": "Select Candles" },
+  "drawer_selection_capturing": { "message": "Reading the selected chart image…" },
+  "drawer_selection_ready": { "message": "Selected Chart Image" },
+  "drawer_selection_image_candles": {
+    "message": "$COUNT$ candle color groups detected; start analysis to match dates and fetch market data.",
+    "placeholders": { "count": { "content": "$1", "example": "64" } }
+  },
+  "drawer_selection_failed": {
+    "message": "The selected image could not be read. Select the chart again."
+  },
+  "drawer_selection_detected": {
+    "message": "$PERIOD$ · $COUNT$ candles · $START$ – $END$",
+    "placeholders": {
+      "period": { "content": "$1", "example": "30m" },
+      "count": { "content": "$2", "example": "64" },
+      "start": { "content": "$3", "example": "2026-08-01" },
+      "end": { "content": "$4", "example": "2026-08-20" }
+    }
+  },
   "drawer_analyzing": { "message": "Analyzing" },
   "drawer_start_analysis": { "message": "Start Analysis" },
   "drawer_empty_title": { "message": "Ready to Analyze" },
@@ -67,6 +85,9 @@
     "placeholders": { "count": { "content": "$1", "example": "200" } }
   },
   "drawer_waiting_chart_data": { "message": "Waiting for chart data" },
+  "period_30_minutes": { "message": "30 minutes" },
+  "period_hour": { "message": "1 hour" },
+  "period_4_hours": { "message": "4 hours" },
   "period_day": { "message": "Daily" },
   "period_week": { "message": "Weekly" },
   "period_month": { "message": "Monthly" },
@@ -166,6 +187,27 @@
   "error_sync_tab": { "message": "The current tab could not be synchronized." },
   "error_initialize_page": { "message": "The page state could not be initialized." },
   "error_start_selection": { "message": "Candlestick selection could not be started." },
+  "error_selection_capture_failed": {
+    "message": "The selected chart image could not be captured. Keep the market tab active and select it again."
+  },
+  "error_selection_period_unrecognized": {
+    "message": "The selected chart period could not be identified. Keep the period control visible and select the candlesticks again."
+  },
+  "error_selection_period_unsupported": {
+    "message": "The selected period ($PERIOD$) is unsupported. The minimum supported period is 30 minutes.",
+    "placeholders": { "period": { "content": "$1", "example": "15m" } }
+  },
+  "error_selection_range_unrecognized": {
+    "message": "The candle dates could not be matched from this image. Include clear red/green candle bodies and select the chart again."
+  },
+  "error_selection_candles_insufficient": {
+    "message": "The selection contains $ACTUAL$ candles. At least $REQUIRED$ are required; select more than $MINIMUM_INPUT$ candles.",
+    "placeholders": {
+      "actual": { "content": "$1", "example": "12" },
+      "required": { "content": "$2", "example": "20" },
+      "minimum_input": { "content": "$3", "example": "19" }
+    }
+  },
   "error_tab_switching": {
     "message": "The current tab is changing. Try the analysis again shortly."
   },
@@ -198,7 +240,7 @@
     "message": "The analysis candle count must be an integer."
   },
   "error_config_candle_count_min": {
-    "message": "The analysis candle count cannot be less than $COUNT$.",
+    "message": "At least $COUNT$ candles are required for analysis. Enter a larger value.",
     "placeholders": { "count": { "content": "$1", "example": "20" } }
   },
   "error_config_candle_count_max": {

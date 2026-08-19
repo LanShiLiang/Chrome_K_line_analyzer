@@ -47,6 +47,47 @@ describe('active market adapters', () => {
     });
   });
 
+  it('supports intraday periods and an exact Binance selection range', () => {
+    const request = createActiveMarketRequest(
+      'https://www.binance.com/en/trade/BTC_USDT?type=spot',
+      { ...DEFAULT_CONFIG, analysisPeriod: '30m', analysisCandleCount: 40 },
+      { startTime: 1_700_000_000_000, endTime: 1_700_070_200_000 },
+    );
+    expect(Object.fromEntries(new URL(request!.url).searchParams)).toEqual({
+      symbol: 'BTCUSDT',
+      interval: '30m',
+      limit: '40',
+      startTime: '1700000000000',
+      endTime: '1700070200000',
+    });
+    expect(
+      createActiveMarketRequest('https://stockpage.10jqka.com.cn/600487/', {
+        ...DEFAULT_CONFIG,
+        analysisPeriod: '1h',
+        analysisCandleCount: 40,
+      })?.url,
+    ).toContain('/51/last40.js');
+  });
+
+  it.each([
+    ['30m', '41'],
+    ['1h', '51'],
+    ['4h', '71'],
+  ] as const)('maps %s for both active site adapters', (period, tonghuashunCode) => {
+    const config = { ...DEFAULT_CONFIG, analysisPeriod: period, analysisCandleCount: 40 };
+    expect(
+      new URL(
+        createActiveMarketRequest(
+          'https://www.binance.com/en/trade/BTC_USDT?type=spot',
+          config,
+        )!.url,
+      ).searchParams.get('interval'),
+    ).toBe(period);
+    expect(
+      createActiveMarketRequest('https://stockpage.10jqka.com.cn/600487/', config)?.url,
+    ).toContain(`/${tonghuashunCode}/last40.js`);
+  });
+
   it('builds the matching Tonghuashun line request and never builds one for TradingView', () => {
     const request = createActiveMarketRequest('https://stockpage.10jqka.com.cn/600487/', {
       ...DEFAULT_CONFIG,
@@ -138,5 +179,10 @@ describe('active market adapters', () => {
         fetcher,
       ),
     ).rejects.toMatchObject({ code: 'E_ACTIVE_MARKET_RESPONSE_INVALID' });
+  });
+
+  it('parses Tonghuashun intraday timestamps', () => {
+    const rows = parseTonghuashunResponse('callback({"data":"202608191430,10,12,9,11,100,1"})');
+    expect((rows[0] as unknown[])[0]).toBe(Date.UTC(2026, 7, 19, 6, 30));
   });
 });
