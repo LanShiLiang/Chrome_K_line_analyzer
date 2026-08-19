@@ -6,7 +6,7 @@ This document is the English-default source for the Chrome Web Store Developer D
 
 ## Single Purpose
 
-> Provide local candlestick, volume-price, and Wyckoff analysis while the user browses a supported market page.
+> Turn a user-selected chart range or current supported market context into local candlestick, volume-price, and Wyckoff analysis.
 
 ## Store Name and Description
 
@@ -16,13 +16,13 @@ This document is the English-default source for the Chrome Web Store Developer D
 
 **Short description**
 
-> Analyze candlesticks, volume-price structure, and Wyckoff stages locally beside supported Binance and Tonghuashun market pages.
+> Select chart candles, match their dates, and analyze 30-minute-to-monthly volume-price and Wyckoff structures locally.
 
 **Detailed description**
 
 > K Line Analyzer is a focused Chrome Side Panel extension for market research.
 >
-> Open a supported Binance or Tonghuashun market page, then use the side panel to review current candlestick and volume data, volume-price structure, Wyckoff stages, strategy results, evidence, key levels, and risk warnings. TradingView remains available as a passive current-chart compatibility path.
+> Open a supported Binance or Tonghuashun market page, then analyze either the current market window or a chart range you explicitly select. For a selection, the extension reads only that rectangle, identifies its period, matches the candle sequence to exact dates, requests the corresponding public OHLCV range, and uses that same range for the result and chart. TradingView remains available as a passive current-chart compatibility path.
 >
 > Core capabilities:
 >
@@ -30,7 +30,8 @@ This document is the English-default source for the Chrome Web Store Developer D
 > - Wyckoff Analysis: identifies accumulation, Spring tests, markup, distribution, and markdown structures.
 > - Local Processing: strategy calculations and results stay in the browser and are not uploaded to a developer server.
 > - Adjustable Context: supports 30-minute, 1-hour, 4-hour, daily, weekly, and monthly periods with up to 1000 candles and a clear 20-candle calculation minimum.
-> - Local Selection Recognition: reads only the chart area explicitly selected by the user and matches candle colors to dates without uploading the screenshot.
+> - Local Selection Recognition: identifies the period and exact date range from the chart area explicitly selected by the user, then analyzes and charts the matching public candles without uploading the screenshot.
+> - Resilient Market Access: retries transient public-data failures serially after the previous request ends, without concurrent retry bursts.
 > - Explainable Results: shows reason codes, evidence, confidence, and risk warnings instead of placing orders or promising returns.
 > - Localized Interface: English is the default, with Simplified Chinese selected automatically from the Chrome UI language.
 >
@@ -40,7 +41,7 @@ This document is the English-default source for the Chrome Web Store Developer D
 > - Tonghuashun (recommended): requests public candlestick data for the current stock code from Tonghuashun's market-data endpoint. Example: https://stockpage.10jqka.com.cn/600519/
 > - TradingView (compatibility): read-only parses market data already streamed to the current page. Availability depends on the data present in the active chart.
 >
-> To use the extension, open and refresh a supported market page, click the K Line Analyzer toolbar icon, choose Open Side Panel, and select Start Analysis.
+> To use the extension, open and refresh a supported market page, click the K Line Analyzer toolbar icon, choose Open Side Panel, then select a candle range or start analysis with the configured current-market window.
 >
 > The extension does not read cookies, authentication tokens, login credentials, trading accounts, positions, orders, or payment information. It contains no advertising, telemetry, or remote code. User settings remain in `chrome.storage.local`.
 >

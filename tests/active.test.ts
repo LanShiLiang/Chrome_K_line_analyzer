@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  ACTIVE_MARKET_MAX_RETRIES,
+  ACTIVE_MARKET_RETRY_DELAY_MS,
   createActiveMarketRequest,
   fetchActiveMarketData,
   parseTonghuashunResponse,
@@ -179,10 +181,116 @@ describe('active market adapters', () => {
         fetcher,
       ),
     ).rejects.toMatchObject({ code: 'E_ACTIVE_MARKET_RESPONSE_INVALID' });
+    expect(fetcher).toHaveBeenCalledOnce();
   });
 
   it('parses Tonghuashun intraday timestamps', () => {
     const rows = parseTonghuashunResponse('callback({"data":"202608191430,10,12,9,11,100,1"})');
     expect((rows[0] as unknown[])[0]).toBe(Date.UTC(2026, 7, 19, 6, 30));
+  });
+
+  it('retries retryable HTTP failures serially after 200ms and stops after success', async () => {
+    vi.useFakeTimers();
+    try {
+      const rows = Array.from({ length: 20 }, (_, index) => [
+        1_700_000_000_000 + index * 86_400_000,
+        '10',
+        '12',
+        '9',
+        '11',
+        '100',
+      ]);
+      const startedAt: number[] = [];
+      const requestDurationMs = 50;
+      let activeRequests = 0;
+      let maximumConcurrentRequests = 0;
+      const fetcher = vi.fn(async () => {
+        startedAt.push(Date.now());
+        activeRequests += 1;
+        maximumConcurrentRequests = Math.max(maximumConcurrentRequests, activeRequests);
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, requestDurationMs));
+        const response =
+          startedAt.length < 3
+            ? new Response('', { status: 502 })
+            : new Response(JSON.stringify(rows), { status: 200 });
+        activeRequests -= 1;
+        return response;
+      }) as unknown as typeof fetch;
+
+      const pending = fetchActiveMarketData(
+        'https://www.binance.com/en/trade/BTC_USDT?type=spot',
+        { ...DEFAULT_CONFIG, analysisCandleCount: 20 },
+        fetcher,
+      );
+      await vi.advanceTimersByTimeAsync(ACTIVE_MARKET_RETRY_DELAY_MS * 2 + requestDurationMs * 3);
+      const data = await pending;
+
+      expect(data?.candles).toHaveLength(20);
+      expect(fetcher).toHaveBeenCalledTimes(3);
+      expect(maximumConcurrentRequests).toBe(1);
+      expect(startedAt.map((time) => time - startedAt[0])).toEqual([
+        0,
+        ACTIVE_MARKET_RETRY_DELAY_MS + requestDurationMs,
+        (ACTIVE_MARKET_RETRY_DELAY_MS + requestDurationMs) * 2,
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops after five retries and does not retry non-retryable HTTP errors', async () => {
+    vi.useFakeTimers();
+    try {
+      const retryableFetcher = vi.fn(
+        async () => new Response('', { status: 502 }),
+      ) as unknown as typeof fetch;
+      const retryableFailure = fetchActiveMarketData(
+        'https://stockpage.10jqka.com.cn/600487/',
+        DEFAULT_CONFIG,
+        retryableFetcher,
+      );
+      const retryableAssertion = expect(retryableFailure).rejects.toMatchObject({
+        code: 'E_ACTIVE_MARKET_HTTP_ERROR',
+      });
+      await vi.advanceTimersByTimeAsync(ACTIVE_MARKET_RETRY_DELAY_MS * ACTIVE_MARKET_MAX_RETRIES);
+      await retryableAssertion;
+      expect(retryableFetcher).toHaveBeenCalledTimes(ACTIVE_MARKET_MAX_RETRIES + 1);
+
+      const invalidRequestFetcher = vi.fn(
+        async () => new Response('', { status: 400 }),
+      ) as unknown as typeof fetch;
+      await expect(
+        fetchActiveMarketData(
+          'https://stockpage.10jqka.com.cn/600487/',
+          DEFAULT_CONFIG,
+          invalidRequestFetcher,
+        ),
+      ).rejects.toMatchObject({ code: 'E_ACTIVE_MARKET_HTTP_ERROR' });
+      expect(invalidRequestFetcher).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retries rejected network requests only after each request settles', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetcher = vi.fn(async () => {
+        throw new TypeError('network unavailable');
+      }) as unknown as typeof fetch;
+      const pending = fetchActiveMarketData(
+        'https://stockpage.10jqka.com.cn/600487/',
+        DEFAULT_CONFIG,
+        fetcher,
+      );
+      const assertion = expect(pending).rejects.toMatchObject({
+        code: 'E_ACTIVE_MARKET_REQUEST_FAILED',
+      });
+      await vi.advanceTimersByTimeAsync(ACTIVE_MARKET_RETRY_DELAY_MS * ACTIVE_MARKET_MAX_RETRIES);
+      await assertion;
+      expect(fetcher).toHaveBeenCalledTimes(ACTIVE_MARKET_MAX_RETRIES + 1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -2,10 +2,10 @@
   "extension_name": { "message": "K 线量价分析器" },
   "extension_name_dev": { "message": "K 线量价分析器（开发版）" },
   "extension_description": {
-    "message": "在支持的 Binance 和同花顺行情页旁，本地完成 K 线量价与维科夫分析。"
+    "message": "框选图表 K 线并匹配日期，在支持的行情页面本地分析 30 分钟至月线的量价结构与维科夫阶段。"
   },
   "extension_description_dev": {
-    "message": "在支持的行情页旁，本地完成 K 线量价与维科夫分析（开发构建）。"
+    "message": "开发版：框选图表 K 线并匹配日期，在支持的行情页面本地进行量价与维科夫分析。"
   },
   "action_title": { "message": "打开 K 线量价分析器" },
   "action_title_dev": { "message": "打开 K 线量价分析器（开发版）" },

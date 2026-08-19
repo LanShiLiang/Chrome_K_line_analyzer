@@ -2,7 +2,7 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-A Chrome Manifest V3 extension for local candlestick, volume-price, and Wyckoff analysis. It chooses a site-appropriate market-data path, normalizes data into OHLCV, and presents explainable stages, signals, confidence, key levels, and risk warnings in the Chrome Side Panel.
+A Chrome Manifest V3 extension that turns an explicitly selected chart range—or the current supported market context—into local candlestick, volume-price, and Wyckoff analysis. It identifies the selected period and dates, requests the matching public OHLCV window, and presents explainable stages, signals, confidence, key levels, and risk warnings in the Chrome Side Panel.
 
 ## Recommended Usage
 
@@ -21,6 +21,7 @@ TradingView remains a compatibility path. It only analyzes market data already s
 - Localized extension name, description, Popup, Side Panel, errors, warnings, stages, actions, and analysis evidence.
 - Read-only MAIN-world WebSocket observation without altering host connections, frames, or heartbeat behavior.
 - Binance and Tonghuashun active public market-data requests with passive page-data fallback.
+- Transient public-market request failures retry serially after the previous request settles, without concurrent request bursts.
 - TradingView passive current-chart compatibility with locked strategy parameters.
 - Tab-scoped market candidates and analysis context isolation.
 - OHLCV normalization for common array and object formats.
@@ -28,7 +29,7 @@ TradingView remains a compatibility path. It only analyzes market data already s
 - Buy, sell, hold, and risk signals with reason codes and confidence.
 - Lightweight Charts candlestick and volume rendering.
 - 30-minute, 1-hour, 4-hour, daily, weekly, and monthly periods with a configurable window up to 1000 candles; calculations clearly require at least 20.
-- Local selected-image recognition that matches candle colors to market dates without uploading screenshots.
+- Local selected-image recognition that identifies the chart period, matches candle colors to exact market dates, and uses the same selected range for analysis and charting without uploading screenshots.
 - One `analysisCandleCount` snapshot drives both analysis and chart rendering.
 - User settings remain in `chrome.storage.local`.
 
@@ -62,7 +63,7 @@ npm run package
 
 - `test:e2e:locale` loads the real extension against Binance in English and Simplified Chinese Chrome environments.
 - `test:e2e:release` validates the English Binance path and Simplified Chinese Tonghuashun path.
-- Real Side Panel E2E covers the Popup user gesture, active Tab binding, localized UI, 200/64 candle analysis, non-empty Canvas output, responsive layout, and reset behavior.
+- Real Side Panel E2E covers the Popup user gesture, active Tab binding, localized UI, 200/64 candle analysis, 30-minute/1-hour/4-hour periods, selected-image date matching, insufficient selections, non-empty Canvas output, responsive recovery, and reset behavior.
 - `npm run package` runs the complete release gate and creates the versioned ZIP and SHA-256 checksum.
 
 ## Chrome Web Store Materials

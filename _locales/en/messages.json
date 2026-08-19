@@ -2,10 +2,10 @@
   "extension_name": { "message": "K Line Analyzer" },
   "extension_name_dev": { "message": "K Line Analyzer (Dev)" },
   "extension_description": {
-    "message": "Run local candlestick, volume-price, and Wyckoff analysis beside supported Binance and Tonghuashun market pages."
+    "message": "Select chart candles, match dates, and run local volume-price and Wyckoff analysis from 30-minute to monthly periods."
   },
   "extension_description_dev": {
-    "message": "Run local candlestick, volume-price, and Wyckoff analysis beside supported market pages (development build)."
+    "message": "Development build for selecting chart candles and running local volume-price and Wyckoff analysis on supported market pages."
   },
   "action_title": { "message": "Open K Line Analyzer" },
   "action_title_dev": { "message": "Open K Line Analyzer (Dev)" },

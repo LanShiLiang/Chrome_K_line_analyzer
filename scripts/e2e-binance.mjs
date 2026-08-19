@@ -421,7 +421,18 @@ try {
     deviceScaleFactor: 1,
     mobile: false,
   });
-  await sidePanel.waitFor(responsiveLayoutExpression, 'Side Panel 恢复宽度后的响应式布局');
+  await sidePanel.waitFor(
+    `(() => {
+      if (!(${responsiveLayoutExpression})) return false;
+      const drawer = document.querySelector('.drawer-shell');
+      const heading = document.querySelector('h1');
+      return document.documentElement.scrollLeft === 0 &&
+        document.body.scrollLeft === 0 &&
+        (drawer?.getBoundingClientRect().left ?? -1) >= 0 &&
+        (heading?.getBoundingClientRect().left ?? -1) >= 0;
+    })()`,
+    'Side Panel 恢复宽度后归零横向滚动并完整显示左侧内容',
+  );
   await sidePanel.screenshot(resultPath('200-candles'));
   await marketPage.screenshot({
     path: resultPath('market-page'),

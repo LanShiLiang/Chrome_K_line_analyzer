@@ -69,6 +69,10 @@ describe('release manifests', () => {
     const english = readJson<Catalog>('_locales/en/messages.json');
     const chinese = readJson<Catalog>('_locales/zh_CN/messages.json');
     expect(Object.keys(chinese).sort()).toEqual(Object.keys(english).sort());
+    for (const catalog of [english, chinese]) {
+      expect(catalog.extension_description?.message.length).toBeLessThanOrEqual(132);
+      expect(catalog.extension_description_dev?.message.length).toBeLessThanOrEqual(132);
+    }
 
     for (const [key, entry] of Object.entries(english)) {
       expect(entry.message.trim(), `empty English message: ${key}`).not.toBe('');

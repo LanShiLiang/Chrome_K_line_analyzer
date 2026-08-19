@@ -22,7 +22,7 @@
 {
   "manifest_version": 3,
   "name": "K Line Analyzer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "K 线量价分析与维科夫策略辅助工具",
   "action": { "default_popup": "popup.html", "default_title": "K Line Analyzer" },
   "background": { "service_worker": "background.js", "type": "module" },

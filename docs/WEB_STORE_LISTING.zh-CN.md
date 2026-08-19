@@ -6,7 +6,7 @@
 
 ## 单一用途
 
-> 在用户浏览受支持的行情网页时，在浏览器本地提供 K 线量价与 Wyckoff 分析。
+> 将用户主动框选的图表区间或当前受支持的行情上下文转换为浏览器本地 K 线量价与 Wyckoff 分析。
 
 ## 商店名称与说明
 
@@ -16,13 +16,13 @@
 
 **简短说明**
 
-> 在 Binance 和同花顺行情页旁，本地完成 K 线量价与 Wyckoff 分析。
+> 框选图表 K 线并匹配日期，本地分析 30 分钟至月线的量价结构与 Wyckoff 阶段。
 
 **详细说明**
 
 > K Line Analyzer 是一个专注于交易研究的 Chrome Side Panel 扩展。
 >
-> 推荐在 Binance 或同花顺行情页面使用。打开对应交易对或证券页面后，扩展会在侧边面板中使用当前市场的 K 线与成交量数据，展示量价结构、Wyckoff 阶段、策略结论、分析依据、关键价位和风险提示。TradingView 作为被动行情兼容路径保留。
+> 推荐在 Binance 或同花顺行情页面使用。用户可以分析当前行情窗口，也可以主动框选图表区间；框选模式只读取所选矩形，在本地识别周期、将 K 线序列匹配到准确日期、获取对应公开 OHLCV 区间，并让分析结果与图表使用同一选区。TradingView 作为被动行情兼容路径保留。
 >
 > 核心能力：
 >
@@ -30,7 +30,8 @@
 > - Wyckoff Analysis：识别吸筹、Spring 测试、拉升、派发和下跌等结构。
 > - Local Processing：策略计算和分析结果留在浏览器本地，不上传至开发者服务器。
 > - Adjustable Context：支持 30 分钟、1 小时、4 小时、日、周、月周期和最多 1000 根 K 线，计算时明确要求至少 20 根。
-> - Local Selection Recognition：只读取用户主动框选的图表区域，在本地把 K 线颜色匹配到日期，不上传截图。
+> - Local Selection Recognition：从用户主动框选的图表区域识别周期和准确日期范围，使用对应公开 K 线完成分析和绘图，不上传截图。
+> - Resilient Market Access：公开行情发生瞬时故障时，仅在前一次请求结束后串行重试，不产生并发重试突发。
 > - Explainable Results：展示结论依据、置信度和风险提示，而不是自动下单或收益承诺。
 > - Localized Interface：默认使用英文，并根据 Chrome 界面语言自动切换为简体中文。
 >
@@ -40,7 +41,7 @@
 > - 同花顺（推荐）：根据当前证券代码，从同花顺公开行情接口获取 K 线。示例：https://stockpage.10jqka.com.cn/600519/
 > - TradingView（兼容）：只读解析当前页面已有 WebSocket 行情，不修改网站连接；可用性取决于页面已经推送的数据。
 >
-> 使用步骤：打开上述示例或其他受支持行情页并刷新，点击 K Line Analyzer 图标，选择“打开侧边分析面板”，再点击“开始分析”。
+> 使用步骤：打开上述示例或其他受支持行情页并刷新，点击 K Line Analyzer 图标，选择“打开侧边分析面板”，然后框选目标 K 线区间，或直接按已配置窗口开始分析。
 >
 > 扩展不读取 Cookie、Token、登录凭证、交易账户、订单或支付信息，不包含广告、遥测和远程代码。用户设置保存在 Chrome Storage 中。
 >
@@ -116,7 +117,7 @@ Dashboard 的具体字段名称可能随界面更新而变化，含义应按以�
 ## 提交前核对
 
 - 运行 `npm.cmd run package`，确认全部单元测试、类型检查、构建审计以及真实 Binance、同花顺 E2E 通过。
-- 解压 `release/k-line-analyzer-0.1.1.zip`，确认根目录 `manifest.json` 与 `manifest.prod.json` 一致。
+- 解压 `release/k-line-analyzer-0.1.2.zip`，确认根目录 `manifest.json` 与 `manifest.prod.json` 一致。
 - 搜索 ZIP 内容，确认没有 `localhost`、`127.0.0.1`、源代码、Source Map、测试文件或商店宣传素材。
 - 确认 ZIP 内包含 16、32、48、128 px PNG 图标，Manifest 的 `icons` 和 `action.default_icon` 均可解析。
 - 上传三张 1280×800 最新主题截图、128×128 图标和 440×280 小型宣传图；确认其中包含 Binance 与同花顺实际使用场景。

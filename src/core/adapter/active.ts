@@ -25,6 +25,14 @@ const THS_PERIOD_CODES: Record<AnalysisPeriod, string> = {
   '1M': '21',
 };
 const ACTIVE_MARKET_TIMEOUT_MS = 10_000;
+export const ACTIVE_MARKET_MAX_RETRIES = 5;
+export const ACTIVE_MARKET_RETRY_DELAY_MS = 200;
+
+const waitForRetry = () =>
+  new Promise<void>((resolve) => globalThis.setTimeout(resolve, ACTIVE_MARKET_RETRY_DELAY_MS));
+
+const isRetryableHttpStatus = (status: number) =>
+  status === 408 || status === 425 || status === 429 || status >= 500;
 
 export class ActiveMarketDataError extends Error {
   constructor(
@@ -116,31 +124,7 @@ export async function fetchActiveMarketData(
   const request = createActiveMarketRequest(pageUrl, config, range);
   if (!request) return undefined;
 
-  let response: Response;
-  try {
-    response = await fetcher(request.url, {
-      method: 'GET',
-      credentials: 'omit',
-      signal: AbortSignal.timeout(ACTIVE_MARKET_TIMEOUT_MS),
-    });
-  } catch (error) {
-    const timedOut = error instanceof DOMException && error.name === 'TimeoutError';
-    throw new ActiveMarketDataError(
-      'E_ACTIVE_MARKET_REQUEST_FAILED',
-      timedOut
-        ? message('error_market_request_timeout')
-        : message(
-            request.siteId === 'binance'
-              ? 'error_binance_market_request_failed'
-              : 'error_tonghuashun_market_request_failed',
-          ),
-    );
-  }
-  if (!response.ok)
-    throw new ActiveMarketDataError(
-      'E_ACTIVE_MARKET_HTTP_ERROR',
-      message('error_market_http', [response.status]),
-    );
+  const response = await fetchActiveResponse(request, fetcher);
 
   const raw = await ACTIVE_RESPONSE_PARSERS[request.siteId](response);
 
@@ -152,6 +136,61 @@ export async function fetchActiveMarketData(
     request.period,
     MIN_ANALYSIS_CANDLES,
     request.adapterId,
+  );
+}
+
+async function fetchActiveResponse(
+  request: ActiveMarketRequest,
+  fetcher: typeof fetch,
+): Promise<Response> {
+  for (let retryCount = 0; retryCount <= ACTIVE_MARKET_MAX_RETRIES; retryCount += 1) {
+    let response: Response;
+    try {
+      // 严格等待当前请求结束后再判断结果，避免超时、重试定时器和后续请求并发堆积。
+      response = await fetcher(request.url, {
+        method: 'GET',
+        credentials: 'omit',
+        signal: AbortSignal.timeout(ACTIVE_MARKET_TIMEOUT_MS),
+      });
+    } catch (error) {
+      if (retryCount < ACTIVE_MARKET_MAX_RETRIES) {
+        await waitForRetry();
+        continue;
+      }
+      const timedOut = error instanceof DOMException && error.name === 'TimeoutError';
+      throw new ActiveMarketDataError(
+        'E_ACTIVE_MARKET_REQUEST_FAILED',
+        timedOut
+          ? message('error_market_request_timeout')
+          : message(
+              request.siteId === 'binance'
+                ? 'error_binance_market_request_failed'
+                : 'error_tonghuashun_market_request_failed',
+            ),
+      );
+    }
+
+    if (response.ok) return response;
+    try {
+      await response.body?.cancel();
+    } catch {
+      // HTTP 状态已足以决定重试；关闭失败响应体本身的异常不覆盖原始状态。
+    }
+    if (!isRetryableHttpStatus(response.status) || retryCount === ACTIVE_MARKET_MAX_RETRIES)
+      throw new ActiveMarketDataError(
+        'E_ACTIVE_MARKET_HTTP_ERROR',
+        message('error_market_http', [response.status]),
+      );
+    await waitForRetry();
+  }
+
+  throw new ActiveMarketDataError(
+    'E_ACTIVE_MARKET_REQUEST_FAILED',
+    message(
+      request.siteId === 'binance'
+        ? 'error_binance_market_request_failed'
+        : 'error_tonghuashun_market_request_failed',
+    ),
   );
 }
 

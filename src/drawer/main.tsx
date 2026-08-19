@@ -105,6 +105,24 @@ function App() {
   const supportsActiveRequest = site === 'binance' || site === 'tonghuashun';
   const canAnalyze = !s.syncing && (supportsActiveRequest || s.candidates.length > 0);
 
+  useEffect(() => {
+    let resetFrame = 0;
+    const resetHorizontalScroll = () => {
+      window.cancelAnimationFrame(resetFrame);
+      resetFrame = window.requestAnimationFrame(() => {
+        document.documentElement.scrollLeft = 0;
+        document.body.scrollLeft = 0;
+        window.scrollTo(0, window.scrollY);
+      });
+    };
+    resetHorizontalScroll();
+    window.addEventListener('resize', resetHorizontalScroll, { passive: true });
+    return () => {
+      window.removeEventListener('resize', resetHorizontalScroll);
+      window.cancelAnimationFrame(resetFrame);
+    };
+  }, []);
+
   const syncActiveTab = useCallback(async (hintTabId?: number) => {
     const requestId = ++syncSequence.current;
     const initial = useDrawerStore.getState();
