@@ -43,6 +43,31 @@ export function extractAnalysisPeriods(text: string): AnalysisPeriod[] {
   return periods;
 }
 
+// 保留页面明确显示但插件尚不支持的周期（例如同花顺 120 分），让错误提示说明
+// “该周期不支持”，而不是误报为“没有识别到周期”。
+export function extractMarketPeriodTokens(text: string): string[] {
+  const tokens: string[] = [];
+  const add = (value: string) => {
+    if (!tokens.includes(value)) tokens.push(value);
+  };
+  const patterns = [
+    /(?:^|\W)(\d{1,4})\s*(?:m|min(?:ute)?s?|分|分钟)(?:$|\W)/gi,
+    /(?:^|\W)(\d{1,3})\s*(?:h|hour(?:s)?|小时)(?:$|\W)/gi,
+    /(?:^|\W)(\d{1,3})\s*(?:d|day(?:s)?|日)(?:$|\W)/gi,
+    /(?:^|\W)(\d{1,3})\s*(?:w|week(?:s)?|周)(?:$|\W)/gi,
+  ];
+  for (const [index, pattern] of patterns.entries()) {
+    for (const match of text.matchAll(pattern)) {
+      const suffix = index === 0 ? 'm' : index === 1 ? 'h' : index === 2 ? 'd' : 'w';
+      add(`${match[1]}${suffix}`);
+    }
+  }
+  if (/(?:^|\W)(?:日线|日K)(?:$|\W)/i.test(text)) add('1d');
+  if (/(?:^|\W)(?:周线|周K)(?:$|\W)/i.test(text)) add('1w');
+  if (/(?:^|\W)(?:月线|月K)(?:$|\W)/i.test(text)) add('1M');
+  return tokens;
+}
+
 export function resolveSelectionPeriod(
   selection: SelectionRange,
   candidates: RawMarketPayload[],
@@ -51,9 +76,20 @@ export function resolveSelectionPeriod(
   const hint = [...(selection.periodHints ?? [])].sort(
     (left, right) => right.confidence - left.confidence,
   )[0];
+  const rawHint = [...(selection.rawPeriodHints ?? [])].sort(
+    (left, right) => right.confidence - left.confidence,
+  )[0];
   // 页面中明确处于选中状态的主图周期控件，比“最后收到的 WebSocket 批次”更接近
   // 用户当前所见；后者可能来自指标或刚切换前的旧订阅。
-  if (hint?.confidence >= 90) return { period: hint.period, raw: hint.period, source: 'page' };
+  if ((hint?.confidence ?? 0) >= 90 || (rawHint?.confidence ?? 0) >= 90) {
+    if (rawHint && rawHint.confidence > (hint?.confidence ?? 0))
+      return {
+        period: normalizeMarketPeriod(rawHint.raw),
+        raw: rawHint.raw,
+        source: 'page',
+      };
+    if (hint) return { period: hint.period, raw: hint.period, source: 'page' };
+  }
   const latestWithPeriod = candidates
     .filter((candidate) => normalizeMarketPeriod(candidate.period))
     .sort((left, right) => right.responseAt - left.responseAt)[0];

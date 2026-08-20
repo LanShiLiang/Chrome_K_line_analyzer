@@ -59,6 +59,13 @@
   },
   "drawer_recovery_action": { "message": "Reload Panel" },
   "drawer_start_analysis": { "message": "Start Analysis" },
+  "drawer_open_strategy_settings": { "message": "Open strategy settings" },
+  "drawer_config_dialog_title": { "message": "Configure this analysis" },
+  "drawer_remember_config": {
+    "message": "Keep this configuration and use this period for future analyses"
+  },
+  "drawer_confirm_config": { "message": "Confirm" },
+  "drawer_close_config": { "message": "Close strategy settings" },
   "drawer_empty_title": { "message": "Ready to Analyze" },
   "drawer_empty_description": {
     "message": "Refresh the market page, then select the target area. The extension will identify OHLCV data from page requests."
@@ -100,13 +107,8 @@
   "drawer_chart_no_volume": {
     "message": "The current chart data has no volume. Only candlesticks are shown, and analysis is limited to price structure."
   },
-  "drawer_strategy_parameters": { "message": "Strategy Parameters" },
-  "drawer_strategy_settings": { "message": "Strategy Settings" },
   "drawer_settings_locked_tradingview": {
     "message": "TradingView follows the current chart period and captured data. These settings cannot be changed here."
-  },
-  "drawer_settings_description": {
-    "message": "Analysis and charting use the same candle count. Valid settings are saved; click Start Analysis to apply them."
   },
   "drawer_tradingview_rules": { "message": "Current TradingView chart analysis rules" },
   "drawer_market_period": { "message": "Market Period" },
@@ -228,6 +230,21 @@
   "error_selection_capture_failed": {
     "message": "The selected chart image could not be captured. Keep the market tab active and select it again."
   },
+  "error_selection_capture_inactive": {
+    "message": "The market tab stopped being active before the selected image could be captured."
+  },
+  "error_selection_capture_permission": {
+    "message": "Chrome could not capture the visible market tab. The page may still be loading or the extension context may be stale."
+  },
+  "error_selection_capture_canvas": {
+    "message": "The selected area was too large for the browser image workspace. Select a tighter chart area and try again."
+  },
+  "error_selection_capture_pixels": {
+    "message": "The selected image was captured, but its pixels could not be read for candle recognition."
+  },
+  "error_selection_capture_preview": {
+    "message": "Candles were read, but the selected-image preview could not be generated."
+  },
   "error_selection_period_unrecognized": {
     "message": "The selected chart period could not be identified. Keep the period control visible and select the candlesticks again."
   },
@@ -302,6 +319,9 @@
   },
   "guidance_selection_keep_tab_active": {
     "message": "Keep the market tab visible and active until the selected image appears in the panel."
+  },
+  "guidance_selection_smaller_area": {
+    "message": "Select only the main candle plot and date axis; exclude large blank areas and side panels."
   },
   "guidance_selection_period_visible": {
     "message": "Keep the selected chart period control visible so 30m, 1h, 4h, daily, weekly, or monthly can be identified."

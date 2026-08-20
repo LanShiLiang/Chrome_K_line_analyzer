@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { createPortal } from 'react-dom';
 import {
   CandlestickChart,
   MousePointer2,
@@ -64,6 +65,7 @@ type ActiveTabContext = {
   tabId: number;
   page?: { url: string; title: string };
 };
+const CONFIG_PROMPT_PREFERENCE_KEY = 'kla:reuseConfigWithoutPrompt';
 
 // Drawer 始终以当前活动标签页作为查询和分析上下文，失败时抛出可展示的用户错误。
 async function getActiveTabContext(): Promise<ActiveTabContext> {
@@ -125,6 +127,11 @@ const cancelPageSelection = async (tabId?: number) => {
 
 function App() {
   const s = useDrawerStore();
+  const [configDialog, setConfigDialog] = useState<'analyze' | 'edit' | undefined>();
+  const [configDraft, setConfigDraft] = useState<UserConfig>({ ...DEFAULT_CONFIG });
+  const [rememberConfig, setRememberConfig] = useState(false);
+  const [rememberDraft, setRememberDraft] = useState(false);
+  const rememberConfigRef = useRef(false);
   const analysisSequence = useRef(0);
   const syncSequence = useRef(0);
   const resetInFlight = useRef(false);
@@ -259,6 +266,11 @@ function App() {
     const current = useDrawerStore.getState();
     const tabId = current.activeTabId;
     autoSelectionRuns.current.clear();
+    setConfigDialog(undefined);
+    setConfigDraft({ ...DEFAULT_CONFIG });
+    setRememberConfig(false);
+    setRememberDraft(false);
+    rememberConfigRef.current = false;
     current.set({
       config: { ...DEFAULT_CONFIG },
       candidates: [],
@@ -278,7 +290,10 @@ function App() {
     }
     try {
       const [storageResult, resetResult, selectionResult] = await Promise.allSettled([
-        chrome.storage.local.set({ 'kla:userConfig': DEFAULT_CONFIG }),
+        chrome.storage.local.set({
+          'kla:userConfig': DEFAULT_CONFIG,
+          [CONFIG_PROMPT_PREFERENCE_KEY]: false,
+        }),
         tabId === undefined
           ? Promise.resolve({ ok: true })
           : chrome.runtime.sendMessage({
@@ -350,10 +365,18 @@ function App() {
       try {
         const currentWindow = await chrome.windows.getCurrent();
         windowId.current = currentWindow.id ?? undefined;
-        const values = await chrome.storage.local.get('kla:userConfig');
+        const values = await chrome.storage.local.get([
+          'kla:userConfig',
+          CONFIG_PROMPT_PREFERENCE_KEY,
+        ]);
         const saved = values['kla:userConfig'] as Partial<UserConfig> | undefined;
         const config = loadStoredUserConfig(saved);
         const configError = getAnalysisConfigError(config);
+        const reuseConfig = values[CONFIG_PROMPT_PREFERENCE_KEY] === true;
+        setConfigDraft(config);
+        setRememberConfig(reuseConfig);
+        setRememberDraft(reuseConfig);
+        rememberConfigRef.current = reuseConfig;
         useDrawerStore
           .getState()
           .set({ config, configError: configError ? translateMessage(configError) : undefined });
@@ -550,18 +573,31 @@ function App() {
     analyzeRef.current = (mode, selectionCapturedAt) =>
       analyze(useDrawerStore.getState().config, mode, selectionCapturedAt);
   });
-  const applyConfig = (config: UserConfig) => {
-    if (isTradingView) {
-      s.set({ config: { ...DEFAULT_CONFIG } });
-      return;
+  const openConfigDialog = (intent: 'analyze' | 'edit') => {
+    setConfigDraft({ ...s.config });
+    setRememberDraft(rememberConfig);
+    setConfigDialog(intent);
+  };
+  const confirmConfig = async () => {
+    const intent = configDialog;
+    if (!intent) return;
+    const nextConfig = isTradingView ? { ...DEFAULT_CONFIG } : configDraft;
+    if (!isTradingView && getAnalysisConfigError(nextConfig)) return;
+    s.set({ config: nextConfig, configError: undefined });
+    setRememberConfig(rememberDraft);
+    rememberConfigRef.current = rememberDraft;
+    setConfigDialog(undefined);
+    if (extensionReady()) {
+      const stored = rememberDraft
+        ? { 'kla:userConfig': nextConfig, [CONFIG_PROMPT_PREFERENCE_KEY]: true }
+        : { [CONFIG_PROMPT_PREFERENCE_KEY]: false };
+      await chrome.storage.local.set(stored);
     }
-    const configError = getAnalysisConfigError(config);
-    s.set({
-      config,
-      configError: configError ? translateMessage(configError) : undefined,
-    });
-    if (!configError && extensionReady())
-      void chrome.storage.local.set({ 'kla:userConfig': config });
+    if (intent === 'analyze') await analyze(nextConfig, 'manual');
+  };
+  const startManualAnalysis = () => {
+    if (rememberConfigRef.current) void analyze(useDrawerStore.getState().config, 'manual');
+    else openConfigDialog('analyze');
   };
   return (
     <main className="drawer-shell">
@@ -629,22 +665,43 @@ function App() {
           <MousePointer2 />
           {t('drawer_select_candles')}
         </button>
-        <button
-          className="primary"
-          data-testid="run-analysis"
-          disabled={s.busy || !canAnalyze || Boolean(s.configError)}
-          onClick={() => void analyze(s.config, 'manual')}
-        >
-          <CandlestickChart />
-          {s.busy ? t('drawer_analyzing') : t('drawer_start_analysis')}
-        </button>
+        <div className="analysis-action-group">
+          <button
+            className="primary analysis-start"
+            data-testid="run-analysis"
+            disabled={s.busy || !canAnalyze}
+            onClick={startManualAnalysis}
+          >
+            <CandlestickChart />
+            {s.busy ? t('drawer_analyzing') : t('drawer_start_analysis')}
+          </button>
+          <button
+            className="primary analysis-settings"
+            data-testid="open-config"
+            type="button"
+            disabled={s.busy}
+            title={t('drawer_open_strategy_settings')}
+            aria-label={t('drawer_open_strategy_settings')}
+            onClick={() => openConfigDialog('edit')}
+          >
+            <Settings />
+          </button>
+        </div>
       </div>
-      {s.configError && (
-        <p className="config-validation" role="status" data-testid="config-validation">
-          <ShieldAlert />
-          {s.configError}
-        </p>
-      )}
+      {configDialog &&
+        createPortal(
+          <ConfigDialog
+            site={site}
+            capturedCandles={capturedCandleCount(s.candidates)}
+            config={configDraft}
+            remember={rememberDraft}
+            onConfigChange={setConfigDraft}
+            onRememberChange={setRememberDraft}
+            onClose={() => setConfigDialog(undefined)}
+            onConfirm={() => void confirmConfig()}
+          />,
+          document.body,
+        )}
       <SelectionSummary selection={s.selection} />
       {s.busy && <AnalysisLoading selectionMode={Boolean(s.selection)} onCancel={cancelAnalysis} />}
       {s.error && (
@@ -665,11 +722,6 @@ function App() {
       {!s.busy && <Result result={s.result} site={site} selectionReady={Boolean(s.selection)} />}
       {!s.busy && <AnalysisWindow data={s.marketData} selection={s.selection} />}
       {!s.busy && <Chart data={s.marketData} />}
-      <Config
-        site={site}
-        capturedCandles={capturedCandleCount(s.candidates)}
-        onChange={applyConfig}
-      />
     </main>
   );
 }
@@ -887,96 +939,156 @@ function Chart({ data }: { data?: MarketData }) {
     </section>
   ) : null;
 }
-function Config({
+function ConfigDialog({
   site,
   capturedCandles,
-  onChange,
+  config,
+  remember,
+  onConfigChange,
+  onRememberChange,
+  onClose,
+  onConfirm,
 }: {
   site: MarketSite;
   capturedCandles: number;
-  onChange: (config: UserConfig) => void;
+  config: UserConfig;
+  remember: boolean;
+  onConfigChange: (config: UserConfig) => void;
+  onRememberChange: (remember: boolean) => void;
+  onClose: () => void;
+  onConfirm: () => void;
 }) {
-  const s = useDrawerStore();
   const disabled = site === 'tradingview';
+  const configError = disabled ? undefined : getAnalysisConfigError(config);
   const update = (key: keyof UserConfig, value: UserConfig[keyof UserConfig]) => {
-    const config: UserConfig = { ...s.config, [key]: value };
-    onChange(config);
+    onConfigChange({ ...config, [key]: value });
   };
+  useEffect(() => {
+    document.body.classList.add('config-modal-open');
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.classList.remove('config-modal-open');
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [onClose]);
   return (
-    <details>
-      <summary>
-        <Settings />
-        {t('drawer_strategy_parameters')}
-      </summary>
-      <div className={`config-body${disabled ? ' is-disabled' : ''}`}>
-        <div className="config-heading">
-          <strong>{t('drawer_strategy_settings')}</strong>
-          <span>
-            {disabled ? t('drawer_settings_locked_tradingview') : t('drawer_settings_description')}
-          </span>
+    <div className="config-dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="config-dialog"
+        data-testid="config-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="config-dialog-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="config-dialog-header">
+          <h2 id="config-dialog-title">{t('drawer_config_dialog_title')}</h2>
+          <button
+            className="icon"
+            type="button"
+            aria-label={t('drawer_close_config')}
+            title={t('drawer_close_config')}
+            onClick={onClose}
+          >
+            <X />
+          </button>
         </div>
-        {disabled ? (
-          <div className="chart-context-settings" aria-label={t('drawer_tradingview_rules')}>
-            <div>
-              <span>{t('drawer_market_period')}</span>
-              <strong>{s.marketData?.period ?? t('drawer_follow_current_chart')}</strong>
-            </div>
-            <div>
-              <span>{t('drawer_analysis_candle_count')}</span>
-              <strong>
-                {capturedCandles
-                  ? t('drawer_captured_candles', [Math.min(capturedCandles, MAX_ANALYSIS_CANDLES)])
-                  : t('drawer_waiting_chart_data')}
-              </strong>
-            </div>
-          </div>
-        ) : (
-          <>
-            <label>
-              {t('drawer_market_period')}
-              <select
-                value={s.config.analysisPeriod}
-                onChange={(event) =>
-                  update(
-                    'analysisPeriod',
-                    event.currentTarget.value as UserConfig['analysisPeriod'],
-                  )
-                }
-              >
-                <option value="30m">{t('period_30_minutes')}</option>
-                <option value="1h">{t('period_hour')}</option>
-                <option value="4h">{t('period_4_hours')}</option>
-                <option value="1d">{t('period_day')}</option>
-                <option value="1w">{t('period_week')}</option>
-                <option value="1M">{t('period_month')}</option>
-              </select>
-            </label>
-            <label>
-              {t('drawer_analysis_candle_count')}
-              <input
-                type="number"
-                min={MIN_ANALYSIS_CANDLES}
-                max={MAX_ANALYSIS_CANDLES}
-                step={1}
-                aria-invalid={Boolean(s.configError)}
-                value={
-                  Number.isFinite(s.config.analysisCandleCount) ? s.config.analysisCandleCount : ''
-                }
-                onChange={(event) => {
-                  update(
-                    'analysisCandleCount',
-                    event.currentTarget.value === ''
-                      ? Number.NaN
-                      : event.currentTarget.valueAsNumber,
-                  );
-                }}
-              />
-              {s.configError && <span className="field-error">{s.configError}</span>}
-            </label>
-          </>
-        )}
-      </div>
-    </details>
+        <div className={`config-body${disabled ? ' is-disabled' : ''}`}>
+          {disabled ? (
+            <>
+              <p className="config-context-note">{t('drawer_settings_locked_tradingview')}</p>
+              <div className="chart-context-settings" aria-label={t('drawer_tradingview_rules')}>
+                <div>
+                  <span>{t('drawer_market_period')}</span>
+                  <strong>{t('drawer_follow_current_chart')}</strong>
+                </div>
+                <div>
+                  <span>{t('drawer_analysis_candle_count')}</span>
+                  <strong>
+                    {capturedCandles
+                      ? t('drawer_captured_candles', [
+                          Math.min(capturedCandles, MAX_ANALYSIS_CANDLES),
+                        ])
+                      : t('drawer_waiting_chart_data')}
+                  </strong>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <label>
+                {t('drawer_market_period')}
+                <select
+                  value={config.analysisPeriod}
+                  onChange={(event) =>
+                    update(
+                      'analysisPeriod',
+                      event.currentTarget.value as UserConfig['analysisPeriod'],
+                    )
+                  }
+                >
+                  <option value="30m">{t('period_30_minutes')}</option>
+                  <option value="1h">{t('period_hour')}</option>
+                  <option value="4h">{t('period_4_hours')}</option>
+                  <option value="1d">{t('period_day')}</option>
+                  <option value="1w">{t('period_week')}</option>
+                  <option value="1M">{t('period_month')}</option>
+                </select>
+              </label>
+              <label>
+                {t('drawer_analysis_candle_count')}
+                <input
+                  type="number"
+                  min={MIN_ANALYSIS_CANDLES}
+                  max={MAX_ANALYSIS_CANDLES}
+                  step={1}
+                  aria-invalid={Boolean(configError)}
+                  value={
+                    Number.isFinite(config.analysisCandleCount) ? config.analysisCandleCount : ''
+                  }
+                  onChange={(event) => {
+                    update(
+                      'analysisCandleCount',
+                      event.currentTarget.value === ''
+                        ? Number.NaN
+                        : event.currentTarget.valueAsNumber,
+                    );
+                  }}
+                />
+                {configError && (
+                  <span className="field-error" data-testid="config-validation">
+                    {translateMessage(configError)}
+                  </span>
+                )}
+              </label>
+            </>
+          )}
+        </div>
+        <label className="remember-config">
+          <input
+            className="config-checkbox"
+            type="checkbox"
+            checked={remember}
+            onChange={(event) => onRememberChange(event.currentTarget.checked)}
+          />
+          <span>{t('drawer_remember_config')}</span>
+        </label>
+        <div className="config-dialog-footer">
+          <button
+            className="primary"
+            data-testid="confirm-config"
+            type="button"
+            disabled={Boolean(configError)}
+            onClick={onConfirm}
+          >
+            {t('drawer_confirm_config')}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -994,7 +1106,24 @@ function SelectionSummary({ selection }: { selection?: SelectionRange }) {
   if (selection.recognitionStatus === 'capturing')
     return <section className="selection-summary">{t('drawer_selection_capturing')}</section>;
   if (selection.recognitionStatus === 'failed')
-    return <section className="selection-summary warning">{t('drawer_selection_failed')}</section>;
+    return (
+      <section className="selection-summary warning" role="alert">
+        <p>
+          {selection.recognitionError
+            ? translateMessage(selection.recognitionError)
+            : t('drawer_selection_failed')}
+        </p>
+        {selection.recognitionGuidance?.length ? (
+          <ol>
+            {selection.recognitionGuidance.map((item) => (
+              <li key={`${item.key}-${item.substitutions?.join('-') ?? ''}`}>
+                {translateMessage(item)}
+              </li>
+            ))}
+          </ol>
+        ) : null}
+      </section>
+    );
   const interpretation = selection.interpretation;
   return (
     <section

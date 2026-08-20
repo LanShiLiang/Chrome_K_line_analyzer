@@ -51,6 +51,13 @@
   },
   "drawer_recovery_action": { "message": "重新加载面板" },
   "drawer_start_analysis": { "message": "开始分析" },
+  "drawer_open_strategy_settings": { "message": "打开策略设置" },
+  "drawer_config_dialog_title": { "message": "配置本次分析" },
+  "drawer_remember_config": {
+    "message": "保留本次配置，之后都用这个级别进行分析"
+  },
+  "drawer_confirm_config": { "message": "确定" },
+  "drawer_close_config": { "message": "关闭策略设置" },
   "drawer_empty_title": { "message": "等待分析" },
   "drawer_empty_description": {
     "message": "刷新行情页面后框选目标区域，插件会从页面请求中识别 OHLCV 数据。"
@@ -88,13 +95,8 @@
   "drawer_chart_no_volume": {
     "message": "当前图表数据不含成交量，仅展示 K 线并降级为价格结构分析。"
   },
-  "drawer_strategy_parameters": { "message": "策略参数" },
-  "drawer_strategy_settings": { "message": "策略设置" },
   "drawer_settings_locked_tradingview": {
     "message": "TradingView 跟随当前图表周期与实际捕获数据，当前页面不可修改。"
-  },
-  "drawer_settings_description": {
-    "message": "分析和图表使用相同的 K 线数量；合法参数会自动保存，点击“开始分析”后应用。"
   },
   "drawer_tradingview_rules": { "message": "TradingView 当前图表分析规则" },
   "drawer_market_period": { "message": "行情周期" },
@@ -198,6 +200,21 @@
   "error_selection_capture_failed": {
     "message": "无法截取框选图像。请保持行情标签页处于活动状态后重新框选。"
   },
+  "error_selection_capture_inactive": {
+    "message": "生成框选图像前，行情标签页已不再处于活动状态。"
+  },
+  "error_selection_capture_permission": {
+    "message": "Chrome 无法截取当前可见的行情标签页；页面可能仍在加载，或扩展上下文已经过期。"
+  },
+  "error_selection_capture_canvas": {
+    "message": "框选范围过大，超出浏览器图像工作区；请缩小到主图区域后重试。"
+  },
+  "error_selection_capture_pixels": {
+    "message": "已截取框选图像，但浏览器无法读取像素进行 K 线识别。"
+  },
+  "error_selection_capture_preview": {
+    "message": "已读取 K 线，但无法生成框选图像预览。"
+  },
   "error_selection_period_unrecognized": {
     "message": "无法识别框选图表的周期。请让周期控件保持可见后重新框选 K 线。"
   },
@@ -254,6 +271,9 @@
   "guidance_selection_retry": { "message": "请重新框选目标 K 线；插件只分析最后一次框选。" },
   "guidance_selection_keep_tab_active": {
     "message": "在框选预览出现在面板前，请保持行情标签页可见且处于活动状态。"
+  },
+  "guidance_selection_smaller_area": {
+    "message": "请只框选主图 K 线区和日期轴，避开大面积空白区域及侧栏。"
   },
   "guidance_selection_period_visible": {
     "message": "请保留图表周期控件，使插件能识别 30 分钟、1 小时、4 小时、日、周或月周期。"

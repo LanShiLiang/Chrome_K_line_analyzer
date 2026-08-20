@@ -6,9 +6,11 @@ import {
 } from '../src/core/selection/image';
 import {
   extractAnalysisPeriods,
+  extractMarketPeriodTokens,
   normalizeMarketPeriod,
   resolveSelectionPeriod,
 } from '../src/core/selection/period';
+import { fitSelectionAnalysisSize } from '../src/background/selection-capture';
 import type { Candle, MarketData, SelectionRange } from '../src/core/model/types';
 import { assessQuality } from '../src/core/adapter/normalize';
 
@@ -65,6 +67,27 @@ describe('selection image recognition', () => {
       startIndex: 37,
       endIndex: 76,
     });
+  });
+
+  it('ignores continuous moving-average overlays instead of merging every candle', () => {
+    const candles = makeCandles(120);
+    const colors = candles
+      .slice(37, 77)
+      .map((candle) => (candle.close > candle.open ? ('green' as const) : ('red' as const)));
+    const pixels = renderColors(colors);
+    for (let x = 0; x < pixels.width; x += 1) {
+      const centerY = 62 + Math.round(5 * Math.sin(x / 28));
+      for (let dy = -1; dy <= 1; dy += 1) {
+        const pixel = ((centerY + dy) * pixels.width + x) * 4;
+        pixels.data[pixel] = 14;
+        pixels.data[pixel + 1] = 203;
+        pixels.data[pixel + 2] = 129;
+        pixels.data[pixel + 3] = 255;
+      }
+    }
+    const detected = detectCandleColors(pixels);
+    expect(detected.detectedCandles).toBe(40);
+    expect(detected.candleColors).toEqual(colors);
   });
 
   it('reverses red/green market semantics for Tonghuashun', () => {
@@ -157,5 +180,32 @@ describe('selection period recognition', () => {
         '1d',
       ),
     ).toEqual({ period: '4h', raw: '4h', source: 'page' });
+  });
+
+  it('preserves a visible unsupported period so the UI can explain the real problem', () => {
+    expect(extractMarketPeriodTokens('120分')).toEqual(['120m']);
+    const selection = {
+      periodHints: [{ period: '1d', confidence: 92, source: 'selected-control' }],
+      rawPeriodHints: [{ raw: '120m', confidence: 92, source: 'selected-control' }],
+    } as SelectionRange;
+    expect(
+      resolveSelectionPeriod(
+        {
+          ...selection,
+          rawPeriodHints: [{ raw: '120m', confidence: 95, source: 'selected-control' }],
+        },
+        [],
+        '1d',
+      ),
+    ).toEqual({
+      period: undefined,
+      raw: '120m',
+      source: 'page',
+    });
+  });
+
+  it('downscales very large selections into a bounded recognition workspace', () => {
+    expect(fitSelectionAnalysisSize(4000, 2400)).toEqual({ width: 1800, height: 1080 });
+    expect(fitSelectionAnalysisSize(640, 360)).toEqual({ width: 640, height: 360 });
   });
 });

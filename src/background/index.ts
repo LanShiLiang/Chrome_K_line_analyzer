@@ -21,7 +21,7 @@ import { createMessage, type ExtensionMessage } from '../shared/messages';
 import { message as localizedMessage } from '../shared/i18n-types';
 import { selectBestPassiveMarketData } from './market';
 import { createSession, resolveSessionTabId, updateSessionPage, type Session } from './session';
-import { captureSelectionImage } from './selection-capture';
+import { captureSelectionImage, SelectionCaptureError } from './selection-capture';
 import { AnalysisTaskRegistry } from './analysis-tasks';
 import { awaitWithSignal, isAbortError, throwIfAborted } from '../shared/cancellation';
 
@@ -57,14 +57,16 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
   if (message.type === 'SELECTION_DONE') {
     analysisTasks.cancel(tabId);
     current.revision += 1;
+    const receivedSelection = message.payload as SelectionRange;
+    const { pageImage, ...selectionPayload } = receivedSelection;
     const selection = {
-      ...(message.payload as SelectionRange),
+      ...selectionPayload,
       tabId,
       recognitionStatus: 'capturing' as const,
     };
     current.selection = selection;
     broadcastSelection(tabId, selection);
-    const task = captureSelectionImage(tabId, selection)
+    const task = captureSelectionImage(tabId, { ...selection, pageImage })
       .then((image) => {
         if (current.selection?.capturedAt !== selection.capturedAt) return;
         current.selection = { ...selection, image, recognitionStatus: 'ready' };
@@ -73,7 +75,18 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
       .catch((error) => {
         console.warn('Unable to capture the selected K-line image.', error);
         if (current.selection?.capturedAt !== selection.capturedAt) return;
-        current.selection = { ...selection, recognitionStatus: 'failed' };
+        current.selection = {
+          ...selection,
+          recognitionStatus: 'failed',
+          recognitionError:
+            error instanceof SelectionCaptureError
+              ? error.userMessage
+              : localizedMessage('error_selection_capture_failed'),
+          recognitionGuidance:
+            error instanceof SelectionCaptureError
+              ? error.guidance
+              : [localizedMessage('guidance_selection_keep_tab_active')],
+        };
         broadcastSelection(tabId, current.selection);
       });
     selectionTasks.set(tabId, task);
@@ -249,8 +262,8 @@ async function runAnalysis(
     if (selection?.recognitionStatus === 'failed')
       throw new AnalysisInputError(
         'E_SELECTION_CAPTURE_FAILED',
-        localizedMessage('error_selection_capture_failed'),
-        [localizedMessage('guidance_selection_keep_tab_active')],
+        selection.recognitionError ?? localizedMessage('error_selection_capture_failed'),
+        selection.recognitionGuidance ?? [localizedMessage('guidance_selection_keep_tab_active')],
       );
     const selectionPeriod = selection
       ? resolveSelectionPeriod(selection, current.candidates, storedConfig.analysisPeriod)

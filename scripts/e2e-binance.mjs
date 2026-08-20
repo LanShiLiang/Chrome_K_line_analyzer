@@ -461,6 +461,58 @@ try {
   })()`);
   await sidePanel.waitFor(
     `(() => {
+      const dialog = document.querySelector('[data-testid="config-dialog"]');
+      const backdrop = document.querySelector('.config-dialog-backdrop');
+      const input = dialog?.querySelector('input[type="number"]');
+      const remember = dialog?.querySelector('input[type="checkbox"]');
+      const start = document.querySelector('[data-testid="run-analysis"]');
+      const settings = document.querySelector('[data-testid="open-config"]');
+      const backdropBounds = backdrop?.getBoundingClientRect();
+      const startBounds = start?.getBoundingClientRect();
+      const settingsBounds = settings?.getBoundingClientRect();
+      return dialog?.getAttribute('role') === 'dialog' &&
+        input instanceof HTMLInputElement && input.value === '200' && input.min === '5' &&
+        remember instanceof HTMLInputElement && !remember.checked &&
+        backdropBounds?.top === 0 && backdropBounds.bottom === innerHeight &&
+        settingsBounds && startBounds && settingsBounds.right <= startBounds.right &&
+        settingsBounds.left >= startBounds.left &&
+        getComputedStyle(settings).backgroundImage === 'none' &&
+        Boolean(document.querySelector('[data-testid="confirm-config"]'));
+    })()`,
+    '首次开始分析弹出参数配置浮窗',
+  );
+  await sidePanel.screenshot(resultPath('config-dialog'));
+  await sidePanel.send('Emulation.setDeviceMetricsOverride', {
+    width: 480,
+    height: 360,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await sidePanel.waitFor(
+    `(() => {
+      const backdrop = document.querySelector('.config-dialog-backdrop')?.getBoundingClientRect();
+      const dialog = document.querySelector('[data-testid="config-dialog"]')?.getBoundingClientRect();
+      return backdrop?.top === 0 && backdrop.bottom === innerHeight &&
+        dialog && dialog.top >= 10 && dialog.bottom <= innerHeight - 10;
+    })()`,
+    '低高度侧栏中的完整参数浮窗',
+  );
+  await sidePanel.screenshot(resultPath('config-dialog-short-height'));
+  await sidePanel.send('Emulation.setDeviceMetricsOverride', {
+    width: 480,
+    height: 1000,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await sidePanel.evaluate(`(() => {
+    const remember = document.querySelector('[data-testid="config-dialog"] input[type="checkbox"]');
+    if (!(remember instanceof HTMLInputElement)) throw new Error('未找到保留配置复选框');
+    remember.click();
+    document.querySelector('[data-testid="confirm-config"]')?.click();
+    return true;
+  })()`);
+  await sidePanel.waitFor(
+    `(() => {
       const loading = document.querySelector('[data-testid="analysis-loading"]');
       const cancel = document.querySelector('[data-testid="cancel-analysis"]');
       return loading?.getAttribute('aria-busy') === 'true' &&
@@ -521,10 +573,9 @@ try {
   await sidePanel.evaluate(`document.querySelector('[data-testid="reset-analyzer"]')?.click()`);
   await sidePanel.waitFor(
     `(() => {
-      const input = document.querySelector('input[type="number"]');
       const control = globalThis.__klaE2EControlTraces.at(-1);
       return Boolean(document.querySelector('[data-testid="analysis-empty"]')) &&
-        input instanceof HTMLInputElement && input.value === '200' &&
+        !document.querySelector('[data-testid="config-dialog"]') &&
         !document.querySelector('[data-testid="analysis-loading"]') &&
         !document.querySelector('.market-chart') && !document.querySelector('.signal') &&
         !document.querySelector('.error') &&
@@ -536,6 +587,15 @@ try {
   await sidePanel.screenshot(resultPath('reset-during-analysis'));
   await restoreActiveMarketRequests(serviceWorker);
   await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
+  await sidePanel.waitFor(
+    `Boolean(document.querySelector('[data-testid="config-dialog"]'))`,
+    '重置后恢复参数确认浮窗',
+  );
+  await sidePanel.evaluate(`(() => {
+    const remember = document.querySelector('[data-testid="config-dialog"] input[type="checkbox"]');
+    if (remember instanceof HTMLInputElement && !remember.checked) remember.click();
+    document.querySelector('[data-testid="confirm-config"]')?.click();
+  })()`);
   await sidePanel.waitFor(renderedAnalysisExpression(200), '重置后重新分析 200 根 K 线');
   const postResetTrace = await sidePanel.evaluate(`globalThis.__klaE2EAnalysisTraces.at(-1)`);
   if (postResetTrace?.response?.data?.marketData?.candles?.length !== 200)
@@ -589,6 +649,11 @@ try {
     type: 'png',
   });
 
+  await sidePanel.evaluate(`document.querySelector('[data-testid="open-config"]')?.click()`);
+  await sidePanel.waitFor(
+    `Boolean(document.querySelector('[data-testid="config-dialog"]'))`,
+    '齿轮重新打开参数浮窗',
+  );
   await sidePanel.evaluate(`(() => {
     const input = document.querySelector('input[type="number"]');
     if (!(input instanceof HTMLInputElement)) throw new Error('未找到分析 K 线数量输入框');
@@ -597,6 +662,7 @@ try {
     input.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
   })()`);
+  await sidePanel.evaluate(`document.querySelector('[data-testid="confirm-config"]')?.click()`);
   await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
   await sidePanel.waitFor(renderedAnalysisExpression(64), '按 64 根 K 线重新分析');
   const secondTrace = await sidePanel.evaluate(`globalThis.__klaE2EAnalysisTraces.at(-1)`);
@@ -607,6 +673,11 @@ try {
   await sidePanel.screenshot(resultPath('64-candles'));
 
   for (const period of ['30m', '1h', '4h']) {
+    await sidePanel.evaluate(`document.querySelector('[data-testid="open-config"]')?.click()`);
+    await sidePanel.waitFor(
+      `Boolean(document.querySelector('[data-testid="config-dialog"]'))`,
+      `打开 ${period} 参数浮窗`,
+    );
     await sidePanel.evaluate(`(() => {
       const select = document.querySelector('select');
       if (!(select instanceof HTMLSelectElement)) throw new Error('未找到行情周期选择框');
@@ -615,6 +686,7 @@ try {
       select.dispatchEvent(new Event('change', { bubbles: true }));
       return true;
     })()`);
+    await sidePanel.evaluate(`document.querySelector('[data-testid="confirm-config"]')?.click()`);
     await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
     await sidePanel.waitFor(
       `(() => {
@@ -630,6 +702,11 @@ try {
   }
   await sidePanel.screenshot(resultPath('intraday-periods'));
 
+  await sidePanel.evaluate(`document.querySelector('[data-testid="open-config"]')?.click()`);
+  await sidePanel.waitFor(
+    `Boolean(document.querySelector('[data-testid="config-dialog"]'))`,
+    '打开参数浮窗验证非法数量',
+  );
   await sidePanel.evaluate(`(() => {
     globalThis.__klaE2ETraceCountBeforeInvalidInput = globalThis.__klaE2EAnalysisTraces.length;
     const input = document.querySelector('input[type="number"]');
@@ -656,6 +733,7 @@ try {
     input?.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
   })()`);
+  await sidePanel.evaluate(`document.querySelector('[data-testid="confirm-config"]')?.click()`);
   await sidePanel.waitFor(
     `(() => {
       const input = document.querySelector('input[type="number"]');
@@ -673,6 +751,85 @@ try {
     input?.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
   })()`);
+  await sidePanel.evaluate(`document.querySelector('[data-testid="confirm-config"]')?.click()`);
+
+  if (profileName === 'tonghuashun') {
+    const chartBounds = await marketPage.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      canvas.dataset.klaE2eUnsupportedPeriodChart = 'true';
+      canvas.width = 900;
+      canvas.height = 420;
+      Object.assign(canvas.style, {
+        position: 'fixed',
+        left: '80px',
+        top: '110px',
+        width: '900px',
+        height: '420px',
+        zIndex: '2147483000',
+        border: '1px solid #d8dee8',
+        background: '#ffffff',
+      });
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('无法创建同花顺框选 E2E Canvas');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      for (let index = 0; index < 30; index += 1) {
+        const rising = index % 3 !== 1;
+        const color = rising ? '#f23645' : '#089981';
+        const x = 35 + index * 28;
+        const openY = 210 + Math.sin(index / 4) * 55;
+        const closeY = openY + (rising ? -24 : 20);
+        context.strokeStyle = color;
+        context.fillStyle = color;
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(x, Math.min(openY, closeY) - 15);
+        context.lineTo(x, Math.max(openY, closeY) + 15);
+        context.stroke();
+        context.fillRect(x - 5, Math.min(openY, closeY), 10, Math.abs(closeY - openY));
+      }
+      const period = document.createElement('button');
+      period.textContent = '120分';
+      Object.assign(period.style, {
+        position: 'fixed',
+        left: '80px',
+        top: '70px',
+        zIndex: '2147483001',
+        fontWeight: '900',
+        color: '#111827',
+      });
+      document.documentElement.append(canvas, period);
+      const rect = canvas.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    });
+    await serviceWorker.evaluate(() => {
+      chrome.tabs.captureVisibleTab = async () => {
+        throw new Error('E2E forced captureVisibleTab permission failure');
+      };
+    });
+    await sidePanel.evaluate(`document.querySelector('[data-testid="select-candles"]')?.click()`);
+    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', { timeout: 5_000 });
+    await marketPage.mouse.move(chartBounds.left + 15, chartBounds.top + 15);
+    await marketPage.mouse.down();
+    await marketPage.mouse.move(
+      chartBounds.left + chartBounds.width - 15,
+      chartBounds.top + chartBounds.height - 15,
+      { steps: 12 },
+    );
+    await marketPage.mouse.up();
+    await sidePanel.waitFor(
+      `(() => {
+        const trace = globalThis.__klaE2EAnalysisTraces.at(-1);
+        const summary = document.querySelector('[data-testid="selection-summary"]');
+        const error = document.querySelector('.error-block')?.textContent ?? '';
+        return Number(summary?.getAttribute('data-detected-candles') ?? 0) >= 12 &&
+          trace?.response?.error?.code === 'E_SELECTION_PERIOD_UNSUPPORTED' &&
+          error.includes('120m');
+      })()`,
+      '同花顺 120 分图像可识别并明确提示周期不支持',
+    );
+    await sidePanel.screenshot(resultPath('selection-120m-unsupported'));
+  }
 
   if (profileName === 'binance') {
     const response = await fetch(
@@ -704,8 +861,9 @@ try {
       const highs = selected.map((row) => Number(row[2]));
       const low = Math.min(...lows);
       const high = Math.max(...highs);
-      const toY = (price) => 30 + ((high - price) / Math.max(high - low, 1)) * 340;
+      const toY = (price) => 35 + ((high - price) / Math.max(high - low, 1)) * 225;
       const step = 840 / selected.length;
+      const volumeMax = Math.max(...selected.map((row) => Number(row[5])));
       selected.forEach((row, index) => {
         const open = Number(row[1]);
         const candleHigh = Number(row[2]);
@@ -723,16 +881,39 @@ try {
         const bodyTop = Math.min(toY(open), toY(close));
         const bodyHeight = Math.max(3, Math.abs(toY(open) - toY(close)));
         context.fillRect(x - 4, bodyTop, 8, bodyHeight);
+        const volumeHeight = (Number(row[5]) / Math.max(volumeMax, 1)) * 92;
+        context.fillRect(x - 4, 395 - volumeHeight, 8, volumeHeight);
       });
+      context.strokeStyle = '#33414b';
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(20, 285);
+      context.lineTo(880, 285);
+      context.stroke();
+      const drawOverlay = (color, yAt) => {
+        context.strokeStyle = color;
+        context.lineWidth = 2;
+        context.beginPath();
+        for (let x = 20; x <= 880; x += 2) {
+          const y = yAt(x);
+          if (x === 20) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        }
+        context.stroke();
+      };
+      // 使用真实行情图常见的红绿连续均线复现“整段被合并为 1 根”的历史回归。
+      drawOverlay('#F6465D', (x) => 175 + Math.sin(x / 95) * 14);
+      drawOverlay('#0ECB81', (x) => 365 + Math.sin(x / 70) * 5);
+      drawOverlay('#B07CFF', (x) => 115 + x / 14);
       const period = document.createElement('button');
       period.textContent = '30m';
-      period.setAttribute('aria-selected', 'true');
-      period.dataset.active = 'true';
       Object.assign(period.style, {
         position: 'fixed',
         left: '80px',
         top: '70px',
         zIndex: '2147483001',
+        fontWeight: '700',
+        color: '#f5f7fa',
       });
       document.documentElement.append(canvas, period);
       window.postMessage(
@@ -913,6 +1094,15 @@ try {
 
     await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
     await sidePanel.waitFor(
+      `Boolean(document.querySelector('[data-testid="config-dialog"]'))`,
+      '框选后首次手工分析仍需确认参数',
+    );
+    await sidePanel.evaluate(`(() => {
+      const remember = document.querySelector('[data-testid="config-dialog"] input[type="checkbox"]');
+      if (remember instanceof HTMLInputElement && !remember.checked) remember.click();
+      document.querySelector('[data-testid="confirm-config"]')?.click();
+    })()`);
+    await sidePanel.waitFor(
       `(() => {
         const trace = globalThis.__klaE2EAnalysisTraces.at(-1);
         return trace?.response?.ok === true &&
@@ -925,6 +1115,30 @@ try {
     await sidePanel.screenshot(resultPath('manual-replaces-selection'));
   }
 
+  await sidePanel.evaluate(`document.querySelector('[data-testid="open-config"]')?.click()`);
+  await sidePanel.waitFor(
+    `Boolean(document.querySelector('[data-testid="config-dialog"]'))`,
+    '重新打开参数浮窗取消保留配置',
+  );
+  await sidePanel.evaluate(`(() => {
+    const remember = document.querySelector('[data-testid="config-dialog"] input[type="checkbox"]');
+    if (!(remember instanceof HTMLInputElement) || !remember.checked)
+      throw new Error('保留配置状态未正确恢复');
+    remember.click();
+    document.querySelector('[data-testid="confirm-config"]')?.click();
+    globalThis.__klaE2ETraceCountBeforePromptRestore = globalThis.__klaE2EAnalysisTraces.length;
+    document.querySelector('[data-testid="run-analysis"]')?.click();
+    return true;
+  })()`);
+  await sidePanel.waitFor(
+    `Boolean(document.querySelector('[data-testid="config-dialog"]')) &&
+      globalThis.__klaE2EAnalysisTraces.length === globalThis.__klaE2ETraceCountBeforePromptRestore`,
+    '取消保留配置后开始分析重新弹窗且不提前请求',
+  );
+  await sidePanel.evaluate(
+    `document.querySelector('[data-testid="config-dialog"] button.icon')?.click()`,
+  );
+
   await sidePanel.evaluate(`(() => {
     const button = document.querySelector('[data-testid="reset-analyzer"]');
     if (!(button instanceof HTMLButtonElement)) throw new Error('未找到重置分析台按钮');
@@ -933,10 +1147,8 @@ try {
   })()`);
   await sidePanel.waitFor(
     `(() => {
-      const input = document.querySelector('input[type="number"]');
       return document.querySelector('[data-testid="analysis-empty"]') &&
-        input instanceof HTMLInputElement &&
-        input.value === '200' &&
+        !document.querySelector('[data-testid="config-dialog"]') &&
         !document.querySelector('.market-chart') &&
         !document.querySelector('.signal') &&
         !document.querySelector('[data-testid="selection-summary"]');

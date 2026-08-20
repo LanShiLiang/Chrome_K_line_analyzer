@@ -42,19 +42,32 @@ export function detectCandleColors(source: PixelSource): Omit<SelectionImageEvid
       rowColored[y] += 1;
     }
   }
-  const green = new Uint32Array(width);
-  const red = new Uint32Array(width);
-  for (let y = 0; y < height; y += 1) {
-    if (rowColored[y] > width * 0.32) continue;
-    for (let x = 0; x < width; x += 1) {
+  const greenVertical = new Uint32Array(width);
+  const redVertical = new Uint32Array(width);
+  for (let x = 0; x < width; x += 1) {
+    let greenRun = 0;
+    let redRun = 0;
+    for (let y = 0; y < height; y += 1) {
+      if (rowColored[y] > width * 0.32) {
+        greenRun = 0;
+        redRun = 0;
+        continue;
+      }
       const color = colors[y * width + x];
-      if (color === 1) green[x] += 1;
-      else if (color === 2) red[x] += 1;
+      greenRun = color === 1 ? greenRun + 1 : 0;
+      redRun = color === 2 ? redRun + 1 : 0;
+      greenVertical[x] = Math.max(greenVertical[x], greenRun);
+      redVertical[x] = Math.max(redVertical[x], redRun);
     }
   }
-  // 已在颜色层排除紫/粉均线，这里保留细小实体和影线，避免窄幅行情被漏检。
-  const threshold = Math.max(1, Math.floor(height * 0.003));
-  const active = Array.from({ length: width }, (_, x) => green[x] + red[x] >= threshold);
+  // 均线和成交量均线虽然横跨所有 X 列，但在单个 X 列上通常只有 1–3 像素厚；
+  // K 线实体、影线和量柱则形成明显的纵向连续段。用纵向跨度做门槛，避免一条
+  // 斜线把整个选区合并成“1 根 K 线”。
+  const minVerticalSpan = Math.max(4, Math.floor(height * 0.006));
+  const active = Array.from(
+    { length: width },
+    (_, x) => Math.max(greenVertical[x], redVertical[x]) >= minVerticalSpan,
+  );
   const groups: Array<{ start: number; end: number }> = [];
   let start = -1;
   let last = -1;
@@ -75,12 +88,12 @@ export function detectCandleColors(source: PixelSource): Omit<SelectionImageEvid
       let greenCount = 0;
       let redCount = 0;
       for (let x = group.start; x <= group.end; x += 1) {
-        greenCount += green[x];
-        redCount += red[x];
+        greenCount += greenVertical[x];
+        redCount += redVertical[x];
       }
       const total = greenCount + redCount;
       const color =
-        total < threshold * 2 || Math.max(greenCount, redCount) / total < 0.58
+        total < minVerticalSpan || Math.max(greenCount, redCount) / total < 0.58
           ? 'unknown'
           : greenCount > redCount
             ? 'green'

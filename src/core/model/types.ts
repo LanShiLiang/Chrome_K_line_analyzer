@@ -43,10 +43,20 @@ export type SelectionRange = {
     confidence: number;
     source: 'selected-control' | 'chart-nearby' | 'page';
   }>;
+  rawPeriodHints?: Array<{
+    raw: string;
+    confidence: number;
+    source: 'selected-control' | 'chart-nearby' | 'page';
+  }>;
   capturedAt: number;
+  // 页面 Canvas 的选区快照仅作为 captureVisibleTab 权限失效时的本地降级输入；
+  // Service Worker 完成识别后立即丢弃，不进入结果或持久化状态。
+  pageImage?: { dataUrl: string; width: number; height: number };
   image?: SelectionImageEvidence;
   interpretation?: SelectionInterpretation;
   recognitionStatus?: 'capturing' | 'ready' | 'failed';
+  recognitionError?: LocalizedMessage;
+  recognitionGuidance?: LocalizedMessage[];
 };
 export type SelectionImageEvidence = {
   dataUrl: string;
