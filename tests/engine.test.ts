@@ -126,12 +126,23 @@ describe('analyzeMarket', () => {
     expect(analysis.result.keyLevels.support).toBe(98);
   });
 
+  it('analyzes five candles with an explicit short-sample warning and conservative action', () => {
+    const analysis = runMarketAnalysis(market(base.slice(0, 5)), {
+      ...DEFAULT_CONFIG,
+      analysisCandleCount: 5,
+    });
+    expect(analysis.marketData.candles).toHaveLength(5);
+    expect(analysis.result.signal.action).toBe('HOLD');
+    expect(analysis.result.signal.confidence).toBeLessThanOrEqual(55);
+    expect(analysis.result.warnings).toContainEqual(message('warning_short_analysis_window', [5]));
+  });
+
   it('keeps only meaningful user settings and validates the analysis window', () => {
     expect(DEFAULT_CONFIG).toEqual({
       analysisPeriod: '1d',
       analysisCandleCount: 200,
     });
-    expect(MIN_ANALYSIS_CANDLES).toBe(20);
+    expect(MIN_ANALYSIS_CANDLES).toBe(5);
     expect(STRATEGY_DEFAULTS).toEqual({
       volumeMaPeriod: 20,
       breakoutThreshold: 0.01,
@@ -141,9 +152,12 @@ describe('analyzeMarket', () => {
     expect(
       getAnalysisConfigError({
         ...DEFAULT_CONFIG,
-        analysisCandleCount: 19,
+        analysisCandleCount: 4,
       }),
-    ).toEqual(message('error_config_candle_count_min', [20]));
+    ).toEqual(message('error_config_candle_count_min', [5]));
+    expect(getAnalysisConfigError({ ...DEFAULT_CONFIG, analysisCandleCount: Number.NaN })).toEqual(
+      message('error_config_candle_count_required'),
+    );
     expect(
       getAnalysisConfigError({
         ...DEFAULT_CONFIG,

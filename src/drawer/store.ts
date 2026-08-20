@@ -21,6 +21,8 @@ type DrawerState = {
   busy: boolean;
   syncing: boolean;
   error?: string;
+  errorGuidance?: string[];
+  configError?: string;
   set: (patch: Partial<DrawerState>) => void;
 };
 
@@ -38,6 +40,7 @@ export function resetTabScopedState(
     busy: false,
     syncing: true,
     error: undefined,
+    errorGuidance: undefined,
   };
 }
 
@@ -54,9 +57,12 @@ export const hasConflictingPage = (left?: DrawerState['page'], right?: DrawerSta
 
 export const selectionUpdatePatch = (
   selection: SelectionRange,
-): Partial<Pick<DrawerState, 'selection' | 'error' | 'marketData' | 'result' | 'busy'>> => ({
+): Partial<
+  Pick<DrawerState, 'selection' | 'error' | 'errorGuidance' | 'marketData' | 'result' | 'busy'>
+> => ({
   selection,
   error: undefined,
+  errorGuidance: undefined,
   ...(selection.recognitionStatus === 'capturing'
     ? { marketData: undefined, result: undefined, busy: false }
     : {}),

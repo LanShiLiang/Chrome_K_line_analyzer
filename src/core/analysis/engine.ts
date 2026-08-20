@@ -19,6 +19,7 @@ export class AnalysisInputError extends Error {
   constructor(
     public readonly code: string,
     public readonly userMessage: LocalizedMessage,
+    public readonly guidance?: LocalizedMessage[],
   ) {
     super(code);
     this.name = 'AnalysisInputError';
@@ -60,8 +61,9 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
   const warnings = [...prepared.quality.warnings];
   // 用户选择的分析数量就是完整的支撑、阻力和趋势观察窗口。
   const window = candles;
-  const recent = window.slice(-Math.min(10, window.length));
-  const prior = window.slice(0, -Math.min(10, window.length));
+  const recentSize = Math.min(10, Math.max(1, Math.ceil(window.length / 2)));
+  const recent = window.slice(-recentSize);
+  const prior = window.slice(0, -recentSize);
   const support = Math.min(...window.map((c) => c.low));
   const resistance = Math.max(...window.map((c) => c.high));
   const latest = candles.at(-1)!;
@@ -150,10 +152,11 @@ function analyzePreparedMarketData(prepared: MarketData): WyckoffAnalysisResult 
     });
   }
 
-  // 数据质量不足时保留形态识别结果，但禁止输出买卖动作。
-  if (candles.length < MIN_ANALYSIS_CANDLES) {
+  // 5 根即可执行，但少于完整成交量均值窗口时明确降置信度，避免把短样本包装成强结论。
+  if (candles.length < STRATEGY_DEFAULTS.volumeMaPeriod) {
+    warnings.push(message('warning_short_analysis_window', [candles.length]));
     action = 'HOLD';
-    score -= 25;
+    score = Math.min(score, 55);
   }
   if (evidence.length === 0) warnings.push(message('warning_unclear_structure'));
   return {

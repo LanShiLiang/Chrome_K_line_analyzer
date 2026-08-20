@@ -48,8 +48,14 @@ export function resolveSelectionPeriod(
   candidates: RawMarketPayload[],
   fallback: AnalysisPeriod,
 ): { period?: AnalysisPeriod; raw?: string; source: 'market' | 'page' | 'config' } {
+  const hint = [...(selection.periodHints ?? [])].sort(
+    (left, right) => right.confidence - left.confidence,
+  )[0];
+  // 页面中明确处于选中状态的主图周期控件，比“最后收到的 WebSocket 批次”更接近
+  // 用户当前所见；后者可能来自指标或刚切换前的旧订阅。
+  if (hint?.confidence >= 90) return { period: hint.period, raw: hint.period, source: 'page' };
   const latestWithPeriod = candidates
-    .filter((candidate) => candidate.period)
+    .filter((candidate) => normalizeMarketPeriod(candidate.period))
     .sort((left, right) => right.responseAt - left.responseAt)[0];
   if (latestWithPeriod?.period) {
     return {
@@ -58,9 +64,6 @@ export function resolveSelectionPeriod(
       source: 'market',
     };
   }
-  const hint = [...(selection.periodHints ?? [])].sort(
-    (left, right) => right.confidence - left.confidence,
-  )[0];
   if (hint) return { period: hint.period, raw: hint.period, source: 'page' };
   return { period: fallback, raw: fallback, source: 'config' };
 }

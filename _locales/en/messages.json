@@ -31,7 +31,7 @@
   "drawer_selection_capturing": { "message": "Reading the selected chart image…" },
   "drawer_selection_ready": { "message": "Selected Chart Image" },
   "drawer_selection_image_candles": {
-    "message": "$COUNT$ candle color groups detected; start analysis to match dates and fetch market data.",
+    "message": "$COUNT$ candle positions detected. Date matching and analysis start automatically.",
     "placeholders": { "count": { "content": "$1", "example": "64" } }
   },
   "drawer_selection_failed": {
@@ -47,6 +47,17 @@
     }
   },
   "drawer_analyzing": { "message": "Analyzing" },
+  "drawer_loading_title": { "message": "Analysis in progress" },
+  "drawer_loading_selection_title": { "message": "Analyzing selected candles" },
+  "drawer_loading_description": {
+    "message": "Fetching and matching market data. You can cancel safely; late results will be discarded."
+  },
+  "drawer_cancel_analysis": { "message": "Cancel Analysis" },
+  "drawer_recovery_title": { "message": "The analysis panel needs to recover" },
+  "drawer_recovery_description": {
+    "message": "An unexpected display error was contained. Reload the panel to return to a clean state."
+  },
+  "drawer_recovery_action": { "message": "Reload Panel" },
   "drawer_start_analysis": { "message": "Start Analysis" },
   "drawer_empty_title": { "message": "Ready to Analyze" },
   "drawer_empty_description": {
@@ -57,6 +68,27 @@
   "drawer_confidence": { "message": "Confidence" },
   "drawer_analysis_evidence": { "message": "Analysis Evidence" },
   "drawer_chart_title": { "message": "Candlesticks and Volume" },
+  "drawer_analysis_window": { "message": "Analysis Window" },
+  "drawer_analysis_window_summary": {
+    "message": "$SYMBOL$ · $PERIOD$ · $COUNT$ candles · $START$ – $END$ · $TIMEZONE$",
+    "placeholders": {
+      "symbol": { "content": "$1", "example": "BTCUSDT" },
+      "period": { "content": "$2", "example": "30 minutes" },
+      "count": { "content": "$3", "example": "64" },
+      "start": { "content": "$4", "example": "08/01/2026, 10:00" },
+      "end": { "content": "$5", "example": "08/02/2026, 17:30" },
+      "timezone": { "content": "$6", "example": "UTC" }
+    }
+  },
+  "drawer_unknown_symbol": { "message": "Current symbol" },
+  "drawer_unknown_period": { "message": "unknown period" },
+  "drawer_local_timezone": { "message": "local time" },
+  "drawer_window_selection": {
+    "message": "Final market-data range matched from the selected image."
+  },
+  "drawer_window_manual": {
+    "message": "Final market-data range used by this configured analysis."
+  },
   "drawer_chart_summary": {
     "message": "This analysis and chart use the latest $COUNT$ candles.",
     "placeholders": { "count": { "content": "$1", "example": "200" } }
@@ -74,7 +106,7 @@
     "message": "TradingView follows the current chart period and captured data. These settings cannot be changed here."
   },
   "drawer_settings_description": {
-    "message": "Analysis and charting use the same candle count. Changes apply immediately and are saved automatically."
+    "message": "Analysis and charting use the same candle count. Valid settings are saved; click Start Analysis to apply them."
   },
   "drawer_tradingview_rules": { "message": "Current TradingView chart analysis rules" },
   "drawer_market_period": { "message": "Market Period" },
@@ -166,6 +198,10 @@
     "message": "Insufficient data: at least $COUNT$ candles are required.",
     "placeholders": { "count": { "content": "$1", "example": "20" } }
   },
+  "warning_short_analysis_window": {
+    "message": "This result uses only $COUNT$ candles. Short samples are supported, but confidence is limited until 20 or more candles are available.",
+    "placeholders": { "count": { "content": "$1", "example": "5" } }
+  },
   "warning_missing_volume": {
     "message": "Volume is missing, so volume-price analysis cannot be performed reliably."
   },
@@ -186,7 +222,9 @@
   "error_refresh_page_state": { "message": "The page state could not be refreshed." },
   "error_sync_tab": { "message": "The current tab could not be synchronized." },
   "error_initialize_page": { "message": "The page state could not be initialized." },
-  "error_start_selection": { "message": "Candlestick selection could not be started." },
+  "error_start_selection": {
+    "message": "Candlestick selection could not connect to this market page. Refresh the page once and try again."
+  },
   "error_selection_capture_failed": {
     "message": "The selected chart image could not be captured. Keep the market tab active and select it again."
   },
@@ -198,14 +236,22 @@
     "placeholders": { "period": { "content": "$1", "example": "15m" } }
   },
   "error_selection_range_unrecognized": {
-    "message": "The candle dates could not be matched from this image. Include clear red/green candle bodies and select the chart again."
+    "message": "Candles were detected, but their date range could not be matched reliably to the requested market data."
+  },
+  "error_selection_stale": { "message": "This selection was replaced before analysis started." },
+  "error_selection_date_evidence_insufficient": {
+    "message": "$ACTUAL$ clear candle directions were found. Five candles are enough to calculate, but at least $REQUIRED$ clear directions are needed to match dates uniquely from an image.",
+    "placeholders": {
+      "actual": { "content": "$1", "example": "8" },
+      "required": { "content": "$2", "example": "12" }
+    }
   },
   "error_selection_candles_insufficient": {
-    "message": "The selection contains $ACTUAL$ candles. At least $REQUIRED$ are required; select more than $MINIMUM_INPUT$ candles.",
+    "message": "The selection contains $ACTUAL$ candles. At least $REQUIRED$ are required; select at least $REQUIRED$ consecutive candles.",
     "placeholders": {
       "actual": { "content": "$1", "example": "12" },
-      "required": { "content": "$2", "example": "20" },
-      "minimum_input": { "content": "$3", "example": "19" }
+      "required": { "content": "$2", "example": "5" },
+      "minimum_input": { "content": "$3", "example": "4" }
     }
   },
   "error_tab_switching": {
@@ -216,6 +262,13 @@
   },
   "error_analysis_retry": { "message": "Analysis failed. Refresh the market page and try again." },
   "error_analysis_service": { "message": "The analysis service could not be reached." },
+  "error_analysis_cancelled": { "message": "Analysis was cancelled." },
+  "error_cancel_analysis": {
+    "message": "The analysis could not be cancelled completely. Reset the analyzer before trying again."
+  },
+  "error_reset_analyzer": {
+    "message": "The analyzer could not be reset completely. Refresh the market page and try again."
+  },
   "error_tab_required": { "message": "Tab context is required." },
   "error_page_context_missing": {
     "message": "The current market page could not be confirmed. Refresh and try again."
@@ -236,12 +289,41 @@
     "message": "The calculation failed. Check the strategy settings or refresh the market page and try again."
   },
   "error_config_period_invalid": { "message": "The market period is invalid. Select it again." },
+  "error_config_candle_count_required": { "message": "Enter the analysis candle count." },
   "error_config_candle_count_integer": {
     "message": "The analysis candle count must be an integer."
   },
   "error_config_candle_count_min": {
     "message": "At least $COUNT$ candles are required for analysis. Enter a larger value.",
-    "placeholders": { "count": { "content": "$1", "example": "20" } }
+    "placeholders": { "count": { "content": "$1", "example": "5" } }
+  },
+  "guidance_selection_retry": {
+    "message": "Select the intended candle range again; only the latest selection is analyzed."
+  },
+  "guidance_selection_keep_tab_active": {
+    "message": "Keep the market tab visible and active until the selected image appears in the panel."
+  },
+  "guidance_selection_period_visible": {
+    "message": "Keep the selected chart period control visible so 30m, 1h, 4h, daily, weekly, or monthly can be identified."
+  },
+  "guidance_selection_supported_period": {
+    "message": "Switch the main chart to a supported period; 30 minutes is the minimum."
+  },
+  "guidance_selection_include_five": { "message": "Select at least 5 consecutive candle bodies." },
+  "guidance_selection_clear_bodies": {
+    "message": "Zoom the chart until candle bodies and wicks are visibly separated; very compressed or doji-heavy ranges are harder to count."
+  },
+  "guidance_selection_main_chart": {
+    "message": "Select one continuous section of the main candlestick plot, including its date axis when practical."
+  },
+  "guidance_selection_avoid_overlays": {
+    "message": "Exclude order books, pop-ups, floating price labels, and separate indicator panels from the selection."
+  },
+  "guidance_selection_recent_range": {
+    "message": "For older history, move the chart so the selected dates are visible and near the current chart viewport before selecting."
+  },
+  "guidance_selection_date_range_missing": {
+    "message": "The market source did not return enough candles inside the matched start and end dates; suspended or missing intervals can cause this."
   },
   "error_config_candle_count_max": {
     "message": "The analysis candle count cannot exceed the current page limit of $COUNT$.",

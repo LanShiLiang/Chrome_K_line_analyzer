@@ -28,7 +28,7 @@ TradingView remains a compatibility path. It only analyzes market data already s
 - Explainable accumulation, Spring test, markup, distribution, and markdown detection.
 - Buy, sell, hold, and risk signals with reason codes and confidence.
 - Lightweight Charts candlestick and volume rendering.
-- 30-minute, 1-hour, 4-hour, daily, weekly, and monthly periods with a configurable window up to 1000 candles; calculations clearly require at least 20.
+- 30-minute, 1-hour, 4-hour, daily, weekly, and monthly periods with a configurable 5–1000-candle window; an empty or invalid draft is preserved and explained before any request is sent.
 - Local selected-image recognition that identifies the chart period, matches candle colors to exact market dates, and uses the same selected range for analysis and charting without uploading screenshots.
 - One `analysisCandleCount` snapshot drives both analysis and chart rendering.
 - User settings remain in `chrome.storage.local`.

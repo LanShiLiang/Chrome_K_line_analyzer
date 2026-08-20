@@ -4,6 +4,7 @@ import { getAnalysisConfigError } from '../config';
 import { MIN_ANALYSIS_CANDLES } from '../model/types';
 import type { AnalysisPeriod, MarketData, UserConfig } from '../model/types';
 import { message, type LocalizedMessage } from '../../shared/i18n-types';
+import { abortReason, delayWithSignal, throwIfAborted } from '../../shared/cancellation';
 
 export type ActiveMarketRequest = {
   siteId: 'binance' | 'tonghuashun';
@@ -28,8 +29,8 @@ const ACTIVE_MARKET_TIMEOUT_MS = 10_000;
 export const ACTIVE_MARKET_MAX_RETRIES = 5;
 export const ACTIVE_MARKET_RETRY_DELAY_MS = 200;
 
-const waitForRetry = () =>
-  new Promise<void>((resolve) => globalThis.setTimeout(resolve, ACTIVE_MARKET_RETRY_DELAY_MS));
+const waitForRetry = (signal?: AbortSignal) =>
+  delayWithSignal(ACTIVE_MARKET_RETRY_DELAY_MS, signal);
 
 const isRetryableHttpStatus = (status: number) =>
   status === 408 || status === 425 || status === 429 || status >= 500;
@@ -120,13 +121,22 @@ export async function fetchActiveMarketData(
   config: UserConfig,
   fetcher: typeof fetch = fetch,
   range?: MarketTimeRange,
+  signal?: AbortSignal,
 ): Promise<MarketData | undefined> {
+  throwIfAborted(signal);
   const request = createActiveMarketRequest(pageUrl, config, range);
   if (!request) return undefined;
 
-  const response = await fetchActiveResponse(request, fetcher);
+  const response = await fetchActiveResponse(request, fetcher, signal);
 
-  const raw = await ACTIVE_RESPONSE_PARSERS[request.siteId](response);
+  let raw: unknown[];
+  try {
+    raw = await ACTIVE_RESPONSE_PARSERS[request.siteId](response);
+  } catch (error) {
+    if (signal?.aborted) throw abortReason(signal);
+    throw error;
+  }
+  throwIfAborted(signal);
 
   return createMarketData(
     raw,
@@ -142,19 +152,23 @@ export async function fetchActiveMarketData(
 async function fetchActiveResponse(
   request: ActiveMarketRequest,
   fetcher: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<Response> {
   for (let retryCount = 0; retryCount <= ACTIVE_MARKET_MAX_RETRIES; retryCount += 1) {
+    throwIfAborted(signal);
     let response: Response;
     try {
       // 严格等待当前请求结束后再判断结果，避免超时、重试定时器和后续请求并发堆积。
+      const timeoutSignal = AbortSignal.timeout(ACTIVE_MARKET_TIMEOUT_MS);
       response = await fetcher(request.url, {
         method: 'GET',
         credentials: 'omit',
-        signal: AbortSignal.timeout(ACTIVE_MARKET_TIMEOUT_MS),
+        signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
       });
     } catch (error) {
+      if (signal?.aborted) throw abortReason(signal);
       if (retryCount < ACTIVE_MARKET_MAX_RETRIES) {
-        await waitForRetry();
+        await waitForRetry(signal);
         continue;
       }
       const timedOut = error instanceof DOMException && error.name === 'TimeoutError';
@@ -181,7 +195,7 @@ async function fetchActiveResponse(
         'E_ACTIVE_MARKET_HTTP_ERROR',
         message('error_market_http', [response.status]),
       );
-    await waitForRetry();
+    await waitForRetry(signal);
   }
 
   throw new ActiveMarketDataError(

@@ -1,4 +1,9 @@
-import type { Candle, DataQuality, MarketData } from '../model/types';
+import {
+  MIN_ANALYSIS_CANDLES,
+  type Candle,
+  type DataQuality,
+  type MarketData,
+} from '../model/types';
 import { message } from '../../shared/i18n-types';
 
 const n = (value: unknown) => {
@@ -54,7 +59,7 @@ export function normalizeCandles(input: unknown): Candle[] {
   ];
 }
 
-export function assessQuality(candles: Candle[], minCandles = 20): DataQuality {
+export function assessQuality(candles: Candle[], minCandles = MIN_ANALYSIS_CANDLES): DataQuality {
   // 数据量和成交量是量价策略可执行的最低质量门槛。
   const warnings: DataQuality['warnings'] = [];
   if (candles.length < minCandles)
@@ -82,7 +87,7 @@ export function createMarketData(
   siteId = 'generic',
   symbol?: string,
   period?: string,
-  minCandles = 20,
+  minCandles = MIN_ANALYSIS_CANDLES,
   adapterId = 'generic-ohlcv',
 ): MarketData {
   // 适配器输出最终都在此汇总为策略引擎使用的统一模型。

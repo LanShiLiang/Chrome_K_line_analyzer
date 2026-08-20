@@ -77,7 +77,36 @@ describe('selection image recognition', () => {
     });
   });
 
-  it('uses chart geometry only for explicitly allowed passive chart data', () => {
+  it('reconstructs a missing candle slot instead of shifting every later candle', () => {
+    const candles = makeCandles(120);
+    const selected = candles.slice(37, 77);
+    const colors = selected.map((candle) => (candle.close > candle.open ? 'green' : 'red'));
+    const pixels = renderColors(colors);
+    const missingIndex = 13;
+    for (let y = 0; y < pixels.height; y += 1) {
+      for (let x = missingIndex * 8; x < missingIndex * 8 + 8; x += 1) {
+        const pixel = (y * pixels.width + x) * 4;
+        pixels.data.fill(0, pixel, pixel + 4);
+      }
+    }
+    const detected = detectCandleColors(pixels);
+    expect(detected.detectedCandles).toBe(40);
+    expect(detected.candleColors[missingIndex]).toBe('unknown');
+    expect(matchCandleSequence(detected.candleColors, candles, 'binance')).toMatchObject({
+      startIndex: 37,
+      endIndex: 76,
+    });
+  });
+
+  it('rejects ambiguous short direction sequences instead of silently choosing the first date', () => {
+    const candles = makeCandles(1000);
+    const colors = candles
+      .slice(0, 5)
+      .map((candle) => (candle.close > candle.open ? ('green' as const) : ('red' as const)));
+    expect(matchCandleSequence(colors, candles, 'binance')).toBeUndefined();
+  });
+
+  it('does not guess dates from chart geometry without a visible time anchor', () => {
     const candles = makeCandles(100);
     const data: MarketData = {
       id: 'market',
@@ -100,12 +129,7 @@ describe('selection image recognition', () => {
       capturedAt: 0,
     } satisfies SelectionRange;
     expect(interpretSelectionRange(selection, data, 'tradingview', false)).toBeUndefined();
-    expect(interpretSelectionRange(selection, data, 'tradingview', true)).toMatchObject({
-      candleCount: 25,
-      startTime: candles[25].timestamp,
-      endTime: candles[49].timestamp,
-      method: 'chart-geometry',
-    });
+    expect(interpretSelectionRange(selection, data, 'tradingview', true)).toBeUndefined();
   });
 });
 
@@ -119,7 +143,7 @@ describe('selection period recognition', () => {
     expect(extractAnalysisPeriods('当前 30分钟 / 4 hours')).toEqual(['30m', '4h']);
   });
 
-  it('prefers the most recent market period over page and config hints', () => {
+  it('prefers a high-confidence selected chart control over stale market streams', () => {
     const selection = {
       periodHints: [{ period: '4h', confidence: 95, source: 'selected-control' }],
     } as SelectionRange;
@@ -132,6 +156,6 @@ describe('selection period recognition', () => {
         ] as never,
         '1d',
       ),
-    ).toEqual({ period: '30m', raw: '30m', source: 'market' });
+    ).toEqual({ period: '4h', raw: '4h', source: 'page' });
   });
 });

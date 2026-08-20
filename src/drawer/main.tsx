@@ -7,6 +7,7 @@ import {
   Settings,
   ShieldAlert,
   ToggleRight,
+  X,
 } from 'lucide-react';
 import {
   createChart,
@@ -20,6 +21,7 @@ import type { ExtensionMessage } from '../shared/messages';
 import { localizeDocument, t, translateMessage } from '../shared/i18n';
 import type { MessageKey } from '../shared/i18n-types';
 import { detectMarketSite, isSameMarketPage, type MarketSite } from '../core/adapter/sites';
+import { normalizeMarketPeriod } from '../core/selection/period';
 import {
   getAnalysisConfigError,
   getRunConfigError,
@@ -29,8 +31,9 @@ import {
 import {
   DEFAULT_CONFIG,
   MAX_ANALYSIS_CANDLES,
-  MIN_CANDLE_COUNT_INPUT,
+  MIN_ANALYSIS_CANDLES,
   type AnalysisPeriod,
+  type AnalysisRunMode,
   type MarketData,
   type RawMarketPayload,
   type SelectionRange,
@@ -45,6 +48,7 @@ import {
   useDrawerStore,
 } from './store';
 import { getMarketColorTheme } from './market-colors';
+import { sendToContentWithRecovery } from './content-connection';
 import {
   ACTION_MESSAGE_KEYS,
   EVIDENCE_MESSAGE_KEYS,
@@ -79,6 +83,10 @@ const responseError = (response: {
   error?: { message?: Parameters<typeof translateMessage>[0] };
 }) => (response.error?.message ? translateMessage(response.error.message) : undefined);
 
+const responseGuidance = (response: {
+  error?: { guidance?: Parameters<typeof translateMessage>[0][] };
+}) => response.error?.guidance?.map((item) => translateMessage(item));
+
 const candidatesForSite = (candidates: RawMarketPayload[], url?: string) => {
   const site = detectMarketSite(url);
   return candidates.filter(
@@ -95,10 +103,36 @@ const capturedCandleCount = (candidates: RawMarketPayload[]) =>
     0,
   );
 
+const cancelBackgroundAnalysis = (tabId?: number) => {
+  if (!extensionReady() || tabId === undefined) return;
+  try {
+    void chrome.runtime
+      .sendMessage({ ...createMessage('CANCEL_ANALYSIS', 'drawer'), tabId })
+      .catch(() => undefined);
+  } catch {
+    // The panel may be closing while Chrome invalidates the extension context.
+  }
+};
+
+const cancelPageSelection = async (tabId?: number) => {
+  if (!extensionReady() || tabId === undefined) return;
+  try {
+    await chrome.tabs.sendMessage(tabId, createMessage('CANCEL_SELECTION', 'drawer'));
+  } catch {
+    // A missing receiver also means there cannot be a live selection overlay to close.
+  }
+};
+
 function App() {
   const s = useDrawerStore();
   const analysisSequence = useRef(0);
   const syncSequence = useRef(0);
+  const resetInFlight = useRef(false);
+  const cancelInFlight = useRef(false);
+  const autoSelectionRuns = useRef(new Set<number>());
+  const analyzeRef = useRef<(mode: AnalysisRunMode, selectionCapturedAt?: number) => Promise<void>>(
+    async () => undefined,
+  );
   const windowId = useRef<number | undefined>(undefined);
   const site = detectMarketSite(s.page?.url);
   const isTradingView = site === 'tradingview';
@@ -128,6 +162,7 @@ function App() {
     const initial = useDrawerStore.getState();
     if (hintTabId !== undefined && initial.activeTabId !== hintTabId) {
       analysisSequence.current += 1;
+      autoSelectionRuns.current.clear();
       initial.set(resetTabScopedState(hintTabId));
     }
     try {
@@ -137,6 +172,7 @@ function App() {
       const changed = !isSameTabContext(current, context.tabId, context.page);
       if (changed) {
         analysisSequence.current += 1;
+        autoSelectionRuns.current.clear();
         current.set(resetTabScopedState(context.tabId, context.page));
       } else {
         current.set({ syncing: true, error: undefined });
@@ -169,7 +205,18 @@ function App() {
         config,
         syncing: false,
         error: undefined,
+        errorGuidance: undefined,
       });
+      const selection = response.data?.selection as SelectionRange | undefined;
+      if (
+        selection?.recognitionStatus === 'ready' &&
+        selection.image &&
+        !selection.interpretation &&
+        !autoSelectionRuns.current.has(selection.capturedAt)
+      ) {
+        autoSelectionRuns.current.add(selection.capturedAt);
+        queueMicrotask(() => void analyzeRef.current('selection', selection.capturedAt));
+      }
       if (
         nextSite === 'tradingview' &&
         (current.config.analysisPeriod !== config.analysisPeriod ||
@@ -187,6 +234,12 @@ function App() {
   }, []);
 
   const closePanel = async () => {
+    const current = useDrawerStore.getState();
+    await cancelPageSelection(current.activeTabId);
+    if (current.busy) {
+      analysisSequence.current += 1;
+      cancelBackgroundAnalysis(current.activeTabId);
+    }
     if (!extensionReady()) return;
     try {
       const currentWindow = await chrome.windows.getCurrent();
@@ -200,23 +253,95 @@ function App() {
     window.close();
   };
   const resetAnalyzer = async () => {
-    analysisSequence.current += 1;
+    if (resetInFlight.current) return;
+    resetInFlight.current = true;
+    const resetSequence = ++analysisSequence.current;
     const current = useDrawerStore.getState();
+    const tabId = current.activeTabId;
+    autoSelectionRuns.current.clear();
     current.set({
       config: { ...DEFAULT_CONFIG },
+      candidates: [],
       busy: false,
+      syncing: true,
       error: undefined,
+      errorGuidance: undefined,
+      configError: undefined,
       selection: undefined,
       marketData: undefined,
       result: undefined,
     });
-    if (!extensionReady()) return;
-    await chrome.storage.local.set({ 'kla:userConfig': DEFAULT_CONFIG });
-    if (current.activeTabId !== undefined)
-      await chrome.runtime.sendMessage({
-        ...createMessage('RESET_ANALYSIS', 'drawer'),
-        tabId: current.activeTabId,
+    if (!extensionReady()) {
+      current.set({ syncing: false });
+      resetInFlight.current = false;
+      return;
+    }
+    try {
+      const [storageResult, resetResult, selectionResult] = await Promise.allSettled([
+        chrome.storage.local.set({ 'kla:userConfig': DEFAULT_CONFIG }),
+        tabId === undefined
+          ? Promise.resolve({ ok: true })
+          : chrome.runtime.sendMessage({
+              ...createMessage('RESET_ANALYSIS', 'drawer'),
+              tabId,
+            }),
+        cancelPageSelection(tabId),
+      ]);
+      const resetResponse = resetResult.status === 'fulfilled' ? resetResult.value : undefined;
+      if (resetSequence === analysisSequence.current)
+        useDrawerStore.getState().set({
+          syncing: false,
+          error:
+            storageResult.status === 'rejected' ||
+            resetResult.status === 'rejected' ||
+            selectionResult.status === 'rejected' ||
+            resetResponse?.ok !== true
+              ? t('error_reset_analyzer')
+              : undefined,
+        });
+    } catch {
+      if (resetSequence === analysisSequence.current)
+        useDrawerStore.getState().set({ syncing: false, error: t('error_reset_analyzer') });
+    } finally {
+      resetInFlight.current = false;
+    }
+  };
+
+  const cancelAnalysis = async () => {
+    if (cancelInFlight.current) return;
+    cancelInFlight.current = true;
+    const cancelSequence = ++analysisSequence.current;
+    const current = useDrawerStore.getState();
+    const tabId = current.activeTabId;
+    autoSelectionRuns.current.clear();
+    current.set({
+      busy: true,
+      error: undefined,
+      errorGuidance: undefined,
+      marketData: undefined,
+      result: undefined,
+      selection: undefined,
+    });
+    if (!extensionReady() || tabId === undefined) {
+      current.set({ busy: false });
+      cancelInFlight.current = false;
+      return;
+    }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        ...createMessage('CANCEL_ANALYSIS', 'drawer'),
+        tabId,
       });
+      if (cancelSequence === analysisSequence.current)
+        useDrawerStore.getState().set({
+          busy: false,
+          error: response?.ok === true ? undefined : t('error_cancel_analysis'),
+        });
+    } catch {
+      if (cancelSequence === analysisSequence.current)
+        useDrawerStore.getState().set({ busy: false, error: t('error_cancel_analysis') });
+    }
+    cancelInFlight.current = false;
   };
 
   useEffect(() => {
@@ -231,7 +356,7 @@ function App() {
         const configError = getAnalysisConfigError(config);
         useDrawerStore
           .getState()
-          .set({ config, error: configError ? translateMessage(configError) : undefined });
+          .set({ config, configError: configError ? translateMessage(configError) : undefined });
         await syncActiveTab();
       } catch (error) {
         useDrawerStore
@@ -245,7 +370,24 @@ function App() {
       if (messageTabId === undefined || messageTabId !== current.activeTabId) return;
       if (m.type === 'SELECTION_UPDATED') {
         const selection = m.payload as SelectionRange;
+        if (
+          current.selection &&
+          (current.selection.capturedAt > selection.capturedAt ||
+            (current.selection.capturedAt === selection.capturedAt &&
+              current.selection.interpretation &&
+              !selection.interpretation))
+        )
+          return;
         current.set(selectionUpdatePatch(selection));
+        if (
+          selection.recognitionStatus === 'ready' &&
+          selection.image &&
+          !selection.interpretation &&
+          !autoSelectionRuns.current.has(selection.capturedAt)
+        ) {
+          autoSelectionRuns.current.add(selection.capturedAt);
+          queueMicrotask(() => void analyzeRef.current('selection', selection.capturedAt));
+        }
         return;
       }
       if (m.type === 'PAGE_DETECTED') {
@@ -264,6 +406,9 @@ function App() {
     const activatedListener = (activeInfo: { tabId: number; windowId: number }) => {
       if (windowId.current !== undefined && activeInfo.windowId !== windowId.current) return;
       const current = useDrawerStore.getState();
+      void cancelPageSelection(current.activeTabId);
+      autoSelectionRuns.current.clear();
+      if (current.busy) cancelBackgroundAnalysis(current.activeTabId);
       analysisSequence.current += 1;
       current.set(resetTabScopedState(activeInfo.tabId));
       void syncActiveTab(activeInfo.tabId);
@@ -275,6 +420,9 @@ function App() {
     ) => {
       const current = useDrawerStore.getState();
       if (tabId !== current.activeTabId || changeInfo.url === undefined) return;
+      void cancelPageSelection(tabId);
+      autoSelectionRuns.current.clear();
+      if (current.busy) cancelBackgroundAnalysis(tabId);
       analysisSequence.current += 1;
       current.set(resetTabScopedState(tabId, { url: changeInfo.url, title: tab.title ?? '' }));
       void syncActiveTab(tabId);
@@ -292,13 +440,24 @@ function App() {
   const select = async () => {
     try {
       const { tabId } = await getActiveTabContext();
-      await chrome.tabs.sendMessage(tabId, createMessage('START_SELECTION', 'drawer'));
-      s.set({ error: undefined });
+      await sendToContentWithRecovery(tabId, createMessage('START_SELECTION', 'drawer'));
+      s.set({
+        selection: undefined,
+        marketData: undefined,
+        result: undefined,
+        error: undefined,
+        errorGuidance: undefined,
+      });
     } catch (error) {
-      s.set({ error: errorMessage(error, 'error_start_selection') });
+      console.warn('Unable to connect the candlestick selector to the market page.', error);
+      s.set({ error: t('error_start_selection') });
     }
   };
-  const analyze = async (config = s.config, showBusy = true) => {
+  const analyze = async (
+    config = useDrawerStore.getState().config,
+    mode: AnalysisRunMode = 'manual',
+    selectionCapturedAt?: number,
+  ) => {
     let requestSequence = ++analysisSequence.current;
     try {
       const { tabId, page: observedPage } = await getActiveTabContext();
@@ -313,10 +472,25 @@ function App() {
         throw new Error(t('error_tab_switching'));
       const requestSite = detectMarketSite(page?.url);
       const requestConfig = resolveUserConfigForSite(requestSite, config);
-      const selectionMode = Boolean(current.selection);
+      const selectionMode = mode === 'selection';
+      if (
+        selectionMode &&
+        (!current.selection ||
+          (selectionCapturedAt !== undefined &&
+            current.selection.capturedAt !== selectionCapturedAt))
+      )
+        return;
       const configError = getRunConfigError(requestConfig, selectionMode);
       if (configError) throw new Error(translateMessage(configError));
-      if (showBusy) current.set({ busy: true, error: undefined });
+      if (!selectionMode) await cancelPageSelection(tabId);
+      current.set({
+        busy: true,
+        error: undefined,
+        errorGuidance: undefined,
+        marketData: undefined,
+        result: undefined,
+        ...(selectionMode ? {} : { selection: undefined }),
+      });
       if (
         !selectionMode &&
         (requestConfig.analysisPeriod !== current.config.analysisPeriod ||
@@ -329,6 +503,8 @@ function App() {
         ...createMessage('RUN_ANALYSIS', 'drawer', {
           config: requestConfig,
           pageUrl: page?.url,
+          mode,
+          selectionCapturedAt,
         }),
         tabId,
       });
@@ -344,6 +520,7 @@ function App() {
         current.set({
           busy: false,
           error: undefined,
+          errorGuidance: undefined,
           page: page ?? current.page,
           marketData: response.data.marketData,
           result: response.data.result,
@@ -354,6 +531,7 @@ function App() {
       current.set({
         busy: false,
         error: responseError(response) ?? t('error_analysis_retry'),
+        errorGuidance: responseGuidance(response),
         marketData: undefined,
         result: undefined,
       });
@@ -362,29 +540,28 @@ function App() {
       useDrawerStore.getState().set({
         busy: false,
         error: errorMessage(error, 'error_analysis_service'),
+        errorGuidance: undefined,
         marketData: undefined,
         result: undefined,
       });
     }
   };
+  useEffect(() => {
+    analyzeRef.current = (mode, selectionCapturedAt) =>
+      analyze(useDrawerStore.getState().config, mode, selectionCapturedAt);
+  });
   const applyConfig = (config: UserConfig) => {
     if (isTradingView) {
       s.set({ config: { ...DEFAULT_CONFIG } });
       return;
     }
-    const shouldReanalyze = Boolean(s.result || s.busy) && canAnalyze;
-    const wasBusy = s.busy;
-    analysisSequence.current += 1;
     const configError = getAnalysisConfigError(config);
     s.set({
       config,
-      busy: false,
-      error: configError ? translateMessage(configError) : undefined,
-      ...(configError ? { marketData: undefined, result: undefined } : {}),
+      configError: configError ? translateMessage(configError) : undefined,
     });
-    if (configError) return;
-    if (extensionReady()) chrome.storage.local.set({ 'kla:userConfig': config });
-    if (shouldReanalyze) void analyze(config, wasBusy);
+    if (!configError && extensionReady())
+      void chrome.storage.local.set({ 'kla:userConfig': config });
   };
   return (
     <main className="drawer-shell">
@@ -407,6 +584,7 @@ function App() {
             className="icon"
             data-testid="reset-analyzer"
             type="button"
+            disabled={s.syncing}
             title={t('drawer_reset_analyzer')}
             aria-label={t('drawer_reset_analyzer')}
             onClick={() => void resetAnalyzer()}
@@ -443,29 +621,50 @@ function App() {
       </section>
       <p className="privacy-note">{t('drawer_privacy')}</p>
       <div className="actions">
-        <button data-testid="select-candles" disabled={s.syncing} onClick={() => void select()}>
+        <button
+          data-testid="select-candles"
+          disabled={s.syncing || s.busy}
+          onClick={() => void select()}
+        >
           <MousePointer2 />
           {t('drawer_select_candles')}
         </button>
         <button
           className="primary"
           data-testid="run-analysis"
-          disabled={s.busy || !canAnalyze}
-          onClick={() => void analyze()}
+          disabled={s.busy || !canAnalyze || Boolean(s.configError)}
+          onClick={() => void analyze(s.config, 'manual')}
         >
           <CandlestickChart />
           {s.busy ? t('drawer_analyzing') : t('drawer_start_analysis')}
         </button>
       </div>
-      <SelectionSummary selection={s.selection} />
-      {s.error && (
-        <p className="error">
+      {s.configError && (
+        <p className="config-validation" role="status" data-testid="config-validation">
           <ShieldAlert />
-          {s.error}
+          {s.configError}
         </p>
       )}
-      <Result result={s.result} site={site} />
-      <Chart data={s.marketData} />
+      <SelectionSummary selection={s.selection} />
+      {s.busy && <AnalysisLoading selectionMode={Boolean(s.selection)} onCancel={cancelAnalysis} />}
+      {s.error && (
+        <section className="error-block" role="alert">
+          <p className="error">
+            <ShieldAlert />
+            {s.error}
+          </p>
+          {s.errorGuidance?.length ? (
+            <ol>
+              {s.errorGuidance.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ol>
+          ) : null}
+        </section>
+      )}
+      {!s.busy && <Result result={s.result} site={site} selectionReady={Boolean(s.selection)} />}
+      {!s.busy && <AnalysisWindow data={s.marketData} selection={s.selection} />}
+      {!s.busy && <Chart data={s.marketData} />}
       <Config
         site={site}
         capturedCandles={capturedCandleCount(s.candidates)}
@@ -474,8 +673,49 @@ function App() {
     </main>
   );
 }
-function Result({ result, site }: { result?: WyckoffAnalysisResult; site: MarketSite }) {
-  if (!result)
+
+function AnalysisLoading({
+  selectionMode,
+  onCancel,
+}: {
+  selectionMode: boolean;
+  onCancel: () => Promise<void>;
+}) {
+  return (
+    <section
+      className="analysis-loading"
+      data-testid="analysis-loading"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <span className="loading-spinner" aria-hidden="true" />
+      <h2>{t(selectionMode ? 'drawer_loading_selection_title' : 'drawer_loading_title')}</h2>
+      <p>{t('drawer_loading_description')}</p>
+      <button
+        className="cancel-analysis"
+        data-testid="cancel-analysis"
+        type="button"
+        onClick={() => void onCancel()}
+      >
+        <X />
+        {t('drawer_cancel_analysis')}
+      </button>
+    </section>
+  );
+}
+
+function Result({
+  result,
+  site,
+  selectionReady,
+}: {
+  result?: WyckoffAnalysisResult;
+  site: MarketSite;
+  selectionReady: boolean;
+}) {
+  if (!result) {
+    if (selectionReady) return null;
     return (
       <section className="empty" data-testid="analysis-empty">
         <CandlestickChart />
@@ -483,6 +723,7 @@ function Result({ result, site }: { result?: WyckoffAnalysisResult; site: Market
         <p>{t('drawer_empty_description')}</p>
       </section>
     );
+  }
   const colors = getMarketColorTheme(site);
   const signalColorStyle = {
     '--signal-rising': colors.rising,
@@ -524,6 +765,51 @@ function Result({ result, site }: { result?: WyckoffAnalysisResult; site: Market
         ))}
       </section>
     </>
+  );
+}
+
+const formatMarketTime = (timestamp: number, period: AnalysisPeriod, timezone?: string) => {
+  const options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    ...(period === '30m' || period === '1h' || period === '4h'
+      ? { hour: '2-digit', minute: '2-digit' }
+      : {}),
+    ...(timezone ? { timeZone: timezone } : {}),
+  };
+  const locale = extensionReady() ? chrome.i18n.getUILanguage() : navigator.language;
+  try {
+    return new Intl.DateTimeFormat(locale, options).format(timestamp);
+  } catch {
+    delete options.timeZone;
+    return new Intl.DateTimeFormat(locale, options).format(timestamp);
+  }
+};
+
+function AnalysisWindow({ data, selection }: { data?: MarketData; selection?: SelectionRange }) {
+  if (!data?.candles.length) return null;
+  const period = normalizeMarketPeriod(data.period);
+  const formatPeriod = period ?? '30m';
+  const first = data.candles[0];
+  const last = data.candles.at(-1)!;
+  return (
+    <section className="analysis-window" data-testid="analysis-window">
+      <h2>{t('drawer_analysis_window')}</h2>
+      <p>
+        {t('drawer_analysis_window_summary', [
+          data.symbol ?? t('drawer_unknown_symbol'),
+          period ? t(PERIOD_MESSAGE_KEYS[period]) : (data.period ?? t('drawer_unknown_period')),
+          data.candles.length,
+          formatMarketTime(first.timestamp, formatPeriod, data.timezone),
+          formatMarketTime(last.timestamp, formatPeriod, data.timezone),
+          data.timezone ?? t('drawer_local_timezone'),
+        ])}
+      </p>
+      <span>
+        {t(selection?.interpretation ? 'drawer_window_selection' : 'drawer_window_manual')}
+      </span>
+    </section>
   );
 }
 // 图表仅消费标准化数据，不直接依赖任何行情网站协议。
@@ -669,15 +955,23 @@ function Config({
               {t('drawer_analysis_candle_count')}
               <input
                 type="number"
-                min={MIN_CANDLE_COUNT_INPUT}
+                min={MIN_ANALYSIS_CANDLES}
                 max={MAX_ANALYSIS_CANDLES}
                 step={1}
-                value={s.config.analysisCandleCount}
+                aria-invalid={Boolean(s.configError)}
+                value={
+                  Number.isFinite(s.config.analysisCandleCount) ? s.config.analysisCandleCount : ''
+                }
                 onChange={(event) => {
-                  const value = event.currentTarget.valueAsNumber;
-                  if (Number.isFinite(value)) update('analysisCandleCount', value);
+                  update(
+                    'analysisCandleCount',
+                    event.currentTarget.value === ''
+                      ? Number.NaN
+                      : event.currentTarget.valueAsNumber,
+                  );
                 }}
               />
+              {s.configError && <span className="field-error">{s.configError}</span>}
             </label>
           </>
         )}
@@ -702,15 +996,6 @@ function SelectionSummary({ selection }: { selection?: SelectionRange }) {
   if (selection.recognitionStatus === 'failed')
     return <section className="selection-summary warning">{t('drawer_selection_failed')}</section>;
   const interpretation = selection.interpretation;
-  const formatDate = (timestamp: number, period: AnalysisPeriod) =>
-    new Intl.DateTimeFormat(chrome.i18n.getUILanguage(), {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      ...(period === '30m' || period === '1h' || period === '4h'
-        ? { hour: '2-digit', minute: '2-digit' }
-        : {}),
-    }).format(timestamp);
   return (
     <section
       className="selection-summary"
@@ -726,16 +1011,49 @@ function SelectionSummary({ selection }: { selection?: SelectionRange }) {
           ? t('drawer_selection_detected', [
               t(PERIOD_MESSAGE_KEYS[interpretation.period]),
               interpretation.candleCount,
-              formatDate(interpretation.startTime, interpretation.period),
-              formatDate(interpretation.endTime, interpretation.period),
+              formatMarketTime(interpretation.startTime, interpretation.period),
+              formatMarketTime(interpretation.endTime, interpretation.period),
             ])
           : t('drawer_selection_image_candles', [selection.image?.detectedCandles ?? 0])}
       </p>
     </section>
   );
 }
+
+class DrawerErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('The analysis panel stopped rendering.', error, info);
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <main className="drawer-shell fatal-recovery" data-testid="drawer-recovery">
+        <ShieldAlert aria-hidden="true" />
+        <h1>{t('drawer_recovery_title')}</h1>
+        <p>{t('drawer_recovery_description')}</p>
+        <button className="primary" type="button" onClick={() => window.location.reload()}>
+          <RotateCcw />
+          {t('drawer_recovery_action')}
+        </button>
+      </main>
+    );
+  }
+}
+
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <DrawerErrorBoundary>
+      <App />
+    </DrawerErrorBoundary>
   </React.StrictMode>,
 );

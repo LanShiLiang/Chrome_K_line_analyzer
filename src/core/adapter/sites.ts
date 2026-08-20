@@ -42,6 +42,10 @@ export function getMarketPageIdentity(pageUrl?: string): string | undefined {
         return `binance:${hostname}:trade:${symbol}:${marketType}`;
       }
     }
+    if (site === 'tonghuashun') {
+      const symbol = url.pathname.match(/^\/(\d{6})(?:\/|$)/)?.[1];
+      if (symbol) return `tonghuashun:${hostname}:stock:${symbol}`;
+    }
     if (site === 'tradingview') {
       const symbol = url.searchParams.get('symbol')?.toUpperCase();
       if (symbol) return `tradingview:${hostname}:chart:${symbol}`;

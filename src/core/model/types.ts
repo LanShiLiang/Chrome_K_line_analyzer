@@ -53,6 +53,8 @@ export type SelectionImageEvidence = {
   width: number;
   height: number;
   candleColors: Array<'green' | 'red' | 'unknown'>;
+  candleCenters?: number[];
+  candleSpacing?: number;
   detectedCandles: number;
   confidence: number;
 };
@@ -62,9 +64,10 @@ export type SelectionInterpretation = {
   endTime: number;
   candleCount: number;
   confidence: number;
-  method: 'image-sequence' | 'chart-geometry';
+  method: 'image-sequence';
 };
 export type AnalysisPeriod = '30m' | '1h' | '4h' | '1d' | '1w' | '1M';
+export type AnalysisRunMode = 'manual' | 'selection';
 export type UserConfig = {
   analysisPeriod: AnalysisPeriod;
   analysisCandleCount: number;
@@ -73,8 +76,8 @@ export const DEFAULT_CONFIG: UserConfig = {
   analysisPeriod: '1d',
   analysisCandleCount: 200,
 };
-export const MIN_ANALYSIS_CANDLES = 20;
-export const MIN_CANDLE_COUNT_INPUT = 1;
+export const MIN_ANALYSIS_CANDLES = 5;
+export const MIN_SELECTION_DATE_EVIDENCE = 12;
 export const MAX_ANALYSIS_CANDLES = 1000;
 // 策略阈值由引擎统一维护，避免用户参数彼此冲突或产生不可解释的组合。
 export const STRATEGY_DEFAULTS = {

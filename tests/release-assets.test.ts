@@ -13,6 +13,7 @@ type Manifest = {
   name: string;
   icons?: Record<string, string>;
   action?: { default_icon?: Record<string, string> };
+  permissions?: string[];
   host_permissions?: string[];
   content_scripts?: Array<{ matches?: string[] }>;
 };
@@ -23,6 +24,11 @@ type Catalog = Record<string, MessageEntry>;
 const root = resolve(import.meta.dirname, '..');
 const readJson = <T>(file: string) => JSON.parse(readFileSync(resolve(root, file), 'utf8')) as T;
 const developmentHosts = ['http://localhost/*', 'http://127.0.0.1/*'];
+const supportedPageHosts = [
+  'https://stockpage.10jqka.com.cn/*',
+  'https://*.tradingview.com/*',
+  'https://www.binance.com/*',
+];
 
 const pngDimensions = (file: string) => {
   const bytes = readFileSync(resolve(root, file));
@@ -40,6 +46,12 @@ describe('release manifests', () => {
     expect(production.default_locale).toBe('en');
     expect(development.name).toBe('__MSG_extension_name_dev__');
     expect(production.name).toBe('__MSG_extension_name__');
+    expect(development.permissions).toContain('scripting');
+    expect(production.permissions).toContain('scripting');
+    for (const host of supportedPageHosts) {
+      expect(development.host_permissions).toContain(host);
+      expect(production.host_permissions).toContain(host);
+    }
 
     for (const host of developmentHosts) {
       expect(development.host_permissions).toContain(host);

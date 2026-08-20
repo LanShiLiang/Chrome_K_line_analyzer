@@ -23,4 +23,19 @@ describe('market page identity', () => {
       isSameMarketPage(ethSpot, 'https://testnet.binance.com/en/trade/ETH_USDT?type=spot'),
     ).toBe(false);
   });
+
+  it('ignores Tonghuashun page decoration parameters without mixing stock codes', () => {
+    expect(
+      isSameMarketPage(
+        'https://stockpage.10jqka.com.cn/600519/',
+        'https://stockpage.10jqka.com.cn/600519/?theme=dark&tracking=e2e',
+      ),
+    ).toBe(true);
+    expect(
+      isSameMarketPage(
+        'https://stockpage.10jqka.com.cn/600519/',
+        'https://stockpage.10jqka.com.cn/600487/?theme=dark',
+      ),
+    ).toBe(false);
+  });
 });

@@ -4,16 +4,19 @@ import type { LocalizedMessage } from './i18n-types';
 export type MessageType =
   | 'PAGE_DETECTED'
   | 'START_SELECTION'
+  | 'CANCEL_SELECTION'
   | 'SELECTION_DONE'
   | 'SELECTION_UPDATED'
   | 'MARKET_DATA_CANDIDATES'
   | 'RUN_ANALYSIS'
+  | 'CANCEL_ANALYSIS'
   | 'RESET_ANALYSIS'
   | 'GET_STATE';
 export type ExtensionError = {
   code: string;
   message: LocalizedMessage;
   detail?: unknown;
+  guidance?: LocalizedMessage[];
   recoverable: boolean;
 };
 export type ExtensionMessage<T = unknown> = {

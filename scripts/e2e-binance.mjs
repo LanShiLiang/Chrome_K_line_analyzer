@@ -165,6 +165,7 @@ const createTargetClient = async (cdp, targetId) => {
 const renderedAnalysisExpression = (expectedCandles) => `(() => {
   const error = document.querySelector('.error')?.textContent ?? '';
   const chart = document.querySelector('.market-chart');
+  const analysisWindow = document.querySelector('[data-testid="analysis-window"]');
   const evidenceHeading = document.querySelector('[data-testid="analysis-evidence-heading"]');
   const evidenceSection = evidenceHeading?.closest('section');
   const rationale = evidenceSection?.querySelectorAll('article, .warning') ?? [];
@@ -207,6 +208,7 @@ const renderedAnalysisExpression = (expectedCandles) => `(() => {
   return diagnostics.evidenceHeading === ${JSON.stringify(locale.evidenceTitle)} &&
     diagnostics.hasLocalizedValues &&
     diagnostics.renderedCandles === diagnostics.expectedCandles &&
+    analysisWindow?.textContent?.includes(diagnostics.expectedCandles) &&
     diagnostics.signalValues.length === 3 &&
     diagnostics.signalValues.every(Boolean) &&
     diagnostics.rationaleCount > 0 &&
@@ -254,6 +256,44 @@ const collapsedLayoutExpression = `(() => {
     Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) <= viewportWidth + 1;
 })()`;
 
+const blockActiveMarketRequests = async (serviceWorker) => {
+  await serviceWorker.evaluate(() => {
+    globalThis.__klaE2EOriginalFetch ??= globalThis.fetch.bind(globalThis);
+    globalThis.__klaE2EAbortState = { started: 0, aborted: 0 };
+    globalThis.fetch = (input, init) => {
+      const url = typeof input === 'string' ? input : (input?.url ?? String(input));
+      if (!url.includes('data-api.binance.vision') && !url.includes('d.10jqka.com.cn'))
+        return globalThis.__klaE2EOriginalFetch(input, init);
+      globalThis.__klaE2EAbortState.started += 1;
+      return new Promise((_resolve, reject) => {
+        const abort = () => {
+          globalThis.__klaE2EAbortState.aborted += 1;
+          reject(init?.signal?.reason ?? new DOMException('E2E cancellation', 'AbortError'));
+        };
+        if (init?.signal?.aborted) abort();
+        else init?.signal?.addEventListener('abort', abort, { once: true });
+      });
+    };
+  });
+};
+
+const restoreActiveMarketRequests = async (serviceWorker) => {
+  await serviceWorker.evaluate(() => {
+    if (globalThis.__klaE2EOriginalFetch) globalThis.fetch = globalThis.__klaE2EOriginalFetch;
+  });
+};
+
+const waitForAbortedMarketRequest = async (serviceWorker, description) => {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const state = await serviceWorker.evaluate(() => globalThis.__klaE2EAbortState);
+    if (state?.started === 1 && state?.aborted === 1) return;
+    await delay(50);
+  }
+  const state = await serviceWorker.evaluate(() => globalThis.__klaE2EAbortState);
+  throw new Error(`${description}未中止唯一的行情请求：${JSON.stringify(state)}`);
+};
+
 let context;
 let sidePanel;
 try {
@@ -287,6 +327,15 @@ try {
     if (tab?.id === undefined) throw new Error(`未找到 ${label} E2E 标签页`);
     return tab.id;
   }, profile.label);
+  const scriptingProbe = await serviceWorker.evaluate(async (tabId) => {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => true,
+    });
+    return result?.result;
+  }, marketTabId);
+  if (scriptingProbe !== true)
+    throw new Error(`${profile.label} 页面不允许按需恢复 Content Script`);
 
   // 通过真实 popup 用户手势打开与当前行情 Tab 绑定的 Chrome Side Panel。
   const popupPage = await context.newPage();
@@ -316,6 +365,7 @@ try {
   if ((await openPanelButton.textContent())?.trim() !== locale.popupButton)
     throw new Error(`Popup action is not localized for ${localeName}`);
   await openPanelButton.click();
+  await marketPage.bringToFront();
   await marketPage.waitForTimeout(500);
 
   const cdp = await context.newCDPSession(marketPage);
@@ -363,15 +413,83 @@ try {
       return { ...tab, url: url.toString() };
     });
     globalThis.__klaE2EAnalysisTraces = [];
+    globalThis.__klaE2EControlTraces = [];
+    globalThis.__klaE2EContentRecovery = { forcedFailures: 0, injections: [] };
     const sendMessage = chrome.runtime.sendMessage.bind(chrome.runtime);
     chrome.runtime.sendMessage = async (message) => {
       const response = await sendMessage(message);
       if (message?.type === 'RUN_ANALYSIS')
         globalThis.__klaE2EAnalysisTraces.push({ message, response });
+      if (message?.type === 'CANCEL_ANALYSIS' || message?.type === 'RESET_ANALYSIS')
+        globalThis.__klaE2EControlTraces.push({ message, response });
       return response;
+    };
+    const sendTabMessage = chrome.tabs.sendMessage.bind(chrome.tabs);
+    chrome.tabs.sendMessage = async (tabId, message, options) => {
+      if (message?.type === 'START_SELECTION' &&
+          globalThis.__klaE2EContentRecovery.forcedFailures === 0) {
+        globalThis.__klaE2EContentRecovery.forcedFailures += 1;
+        throw new Error('Could not establish connection. Receiving end does not exist.');
+      }
+      return options === undefined
+        ? sendTabMessage(tabId, message)
+        : sendTabMessage(tabId, message, options);
+    };
+    const executeScript = chrome.scripting.executeScript.bind(chrome.scripting);
+    chrome.scripting.executeScript = async (injection) => {
+      if (injection?.files?.some((file) => file === 'inject.js' || file === 'content.js')) {
+        globalThis.__klaE2EContentRecovery.injections.push({
+          files: injection.files,
+          world: injection.world
+        });
+        // 此页已有真实 Content Script；记录生产恢复调用但避免在测试页重复安装监听器。
+        return [];
+      }
+      return executeScript(injection);
     };
     return true;
   })()`);
+
+  // 人为挂起真实后台行情请求，验证 Loading 可见、取消会中止当前请求且不发送重试。
+  await blockActiveMarketRequests(serviceWorker);
+  await sidePanel.evaluate(`(() => {
+    const button = document.querySelector('[data-testid="run-analysis"]');
+    if (!(button instanceof HTMLButtonElement) || button.disabled)
+      throw new Error('取消测试前的开始分析按钮不可用');
+    button.click();
+    return true;
+  })()`);
+  await sidePanel.waitFor(
+    `(() => {
+      const loading = document.querySelector('[data-testid="analysis-loading"]');
+      const cancel = document.querySelector('[data-testid="cancel-analysis"]');
+      return loading?.getAttribute('aria-busy') === 'true' &&
+        cancel instanceof HTMLButtonElement && !cancel.disabled &&
+        !document.querySelector('[data-testid="analysis-empty"]') &&
+        !document.querySelector('.market-chart') &&
+        document.body.innerText.trim().length > 100;
+    })()`,
+    '普通分析 Loading 界面',
+  );
+  await sidePanel.screenshot(resultPath('analysis-loading'));
+  await sidePanel.evaluate(`document.querySelector('[data-testid="cancel-analysis"]')?.click()`);
+  await sidePanel.waitFor(
+    `(() => {
+      const control = globalThis.__klaE2EControlTraces.at(-1);
+      return !document.querySelector('[data-testid="analysis-loading"]') &&
+        Boolean(document.querySelector('[data-testid="analysis-empty"]')) &&
+        !document.querySelector('.error') &&
+        control?.message?.type === 'CANCEL_ANALYSIS' && control.response?.ok === true;
+    })()`,
+    '取消普通分析并清理界面状态',
+  );
+  await waitForAbortedMarketRequest(serviceWorker, '取消普通分析');
+  await sidePanel.waitFor(
+    `globalThis.__klaE2EAnalysisTraces.at(-1)?.response?.error?.code === 'E_ANALYSIS_CANCELLED'`,
+    '后台确认普通分析已取消',
+  );
+  await sidePanel.screenshot(resultPath('analysis-cancelled'));
+  await restoreActiveMarketRequests(serviceWorker);
 
   await sidePanel.evaluate(`(() => {
     const button = document.querySelector('[data-testid="run-analysis"]');
@@ -390,6 +508,38 @@ try {
     throw new Error('默认分析 K 线数量未传入后台');
   if (firstTrace?.response?.data?.marketData?.candles?.length !== 200)
     throw new Error('后台没有返回 200 根 K 线');
+
+  // 在已有结果上再次挂起请求并点击右上角重置，验证重置会取消后台任务、清空全部
+  // Tab 级状态，并允许下一次分析从干净状态成功运行。
+  await blockActiveMarketRequests(serviceWorker);
+  await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
+  await sidePanel.waitFor(
+    `Boolean(document.querySelector('[data-testid="analysis-loading"]')) &&
+      !document.querySelector('.market-chart') && !document.querySelector('.signal')`,
+    '重置前进入 Loading 状态',
+  );
+  await sidePanel.evaluate(`document.querySelector('[data-testid="reset-analyzer"]')?.click()`);
+  await sidePanel.waitFor(
+    `(() => {
+      const input = document.querySelector('input[type="number"]');
+      const control = globalThis.__klaE2EControlTraces.at(-1);
+      return Boolean(document.querySelector('[data-testid="analysis-empty"]')) &&
+        input instanceof HTMLInputElement && input.value === '200' &&
+        !document.querySelector('[data-testid="analysis-loading"]') &&
+        !document.querySelector('.market-chart') && !document.querySelector('.signal') &&
+        !document.querySelector('.error') &&
+        control?.message?.type === 'RESET_ANALYSIS' && control.response?.ok === true;
+    })()`,
+    '计算期间可靠重置分析台',
+  );
+  await waitForAbortedMarketRequest(serviceWorker, '计算期间重置');
+  await sidePanel.screenshot(resultPath('reset-during-analysis'));
+  await restoreActiveMarketRequests(serviceWorker);
+  await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
+  await sidePanel.waitFor(renderedAnalysisExpression(200), '重置后重新分析 200 根 K 线');
+  const postResetTrace = await sidePanel.evaluate(`globalThis.__klaE2EAnalysisTraces.at(-1)`);
+  if (postResetTrace?.response?.data?.marketData?.candles?.length !== 200)
+    throw new Error('重置后的下一次分析残留了旧任务状态');
 
   // 回归真实用户操作：先放宽 Side Panel，再缩窄，所有内容和图表容器都必须重新排版。
   await sidePanel.send('Emulation.setDeviceMetricsOverride', {
@@ -447,6 +597,7 @@ try {
     input.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
   })()`);
+  await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
   await sidePanel.waitFor(renderedAnalysisExpression(64), '按 64 根 K 线重新分析');
   const secondTrace = await sidePanel.evaluate(`globalThis.__klaE2EAnalysisTraces.at(-1)`);
   if (secondTrace?.message?.payload?.config?.analysisCandleCount !== 64)
@@ -464,6 +615,7 @@ try {
       select.dispatchEvent(new Event('change', { bubbles: true }));
       return true;
     })()`);
+    await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
     await sidePanel.waitFor(
       `(() => {
         const trace = globalThis.__klaE2EAnalysisTraces.at(-1);
@@ -479,23 +631,48 @@ try {
   await sidePanel.screenshot(resultPath('intraday-periods'));
 
   await sidePanel.evaluate(`(() => {
+    globalThis.__klaE2ETraceCountBeforeInvalidInput = globalThis.__klaE2EAnalysisTraces.length;
     const input = document.querySelector('input[type="number"]');
     if (!(input instanceof HTMLInputElement)) throw new Error('未找到分析 K 线数量输入框');
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-    setter?.call(input, '10');
+    setter?.call(input, '');
     input.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
   })()`);
   await sidePanel.waitFor(
     `(() => {
       const input = document.querySelector('input[type="number"]');
-      const error = document.querySelector('.error')?.textContent ?? '';
-      return input instanceof HTMLInputElement && input.value === '10' &&
-        input.min === '1' && error.includes('20') && !document.querySelector('.market-chart');
+      const error = document.querySelector('[data-testid="config-validation"]')?.textContent ?? '';
+      return input instanceof HTMLInputElement && input.value === '' &&
+        input.min === '5' && error.length > 0 &&
+        globalThis.__klaE2EAnalysisTraces.length === globalThis.__klaE2ETraceCountBeforeInvalidInput;
     })()`,
-    '允许输入小于 20 并显示最低分析数量',
+    '允许清空输入且不触发行情请求',
   );
-  await sidePanel.screenshot(resultPath('10-candles-validation'));
+  await sidePanel.evaluate(`(() => {
+    const input = document.querySelector('input[type="number"]');
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(input, '4');
+    input?.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })()`);
+  await sidePanel.waitFor(
+    `(() => {
+      const input = document.querySelector('input[type="number"]');
+      const error = document.querySelector('[data-testid="config-validation"]')?.textContent ?? '';
+      return input instanceof HTMLInputElement && input.value === '4' && error.includes('5') &&
+        globalThis.__klaE2EAnalysisTraces.length === globalThis.__klaE2ETraceCountBeforeInvalidInput;
+    })()`,
+    '小于 5 根时仅显示校验提示且不请求行情',
+  );
+  await sidePanel.screenshot(resultPath('4-candles-validation'));
+  await sidePanel.evaluate(`(() => {
+    const input = document.querySelector('input[type="number"]');
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(input, '64');
+    input?.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })()`);
 
   if (profileName === 'binance') {
     const response = await fetch(
@@ -600,10 +777,42 @@ try {
       return true;
     })()`);
     await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', { timeout: 5_000 });
+    const recoveryTrace = await sidePanel.evaluate(`globalThis.__klaE2EContentRecovery`);
+    if (
+      recoveryTrace?.forcedFailures !== 1 ||
+      recoveryTrace?.injections?.length !== 2 ||
+      recoveryTrace.injections[0]?.world !== 'MAIN' ||
+      recoveryTrace.injections[0]?.files?.[0] !== 'inject.js' ||
+      recoveryTrace.injections[1]?.world !== 'ISOLATED' ||
+      recoveryTrace.injections[1]?.files?.[0] !== 'content.js'
+    )
+      throw new Error(`Content Script 自恢复链路不完整：${JSON.stringify(recoveryTrace)}`);
+    const recoveryError = await sidePanel.evaluate(
+      `document.querySelector('.error')?.textContent ?? ''`,
+    );
+    if (recoveryError.includes('Receiving end does not exist'))
+      throw new Error('Content Script 自恢复后仍向用户显示原始连接错误');
+    await marketPage.screenshot({
+      path: resultPath('selection-recovered-overlay'),
+      type: 'png',
+    });
+    await sidePanel.evaluate(`document.querySelector('[data-testid="reset-analyzer"]')?.click()`);
+    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', {
+      state: 'detached',
+      timeout: 5_000,
+    });
+    await sidePanel.waitFor(
+      `Boolean(document.querySelector('[data-testid="analysis-empty"]')) &&
+        !document.querySelector('[data-testid="selection-summary"]')`,
+      '重置可靠关闭尚未完成的框选遮罩',
+    );
+    await sidePanel.evaluate(`document.querySelector('[data-testid="select-candles"]')?.click()`);
+    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', { timeout: 5_000 });
     const startX = chartBounds.left + 20;
     const endX = chartBounds.left + chartBounds.width - 20;
     const startY = chartBounds.top + 10;
     const endY = chartBounds.top + chartBounds.height - 30;
+    await blockActiveMarketRequests(serviceWorker);
     await marketPage.mouse.move(startX, startY);
     await marketPage.mouse.down();
     await marketPage.mouse.move(endX, endY, { steps: 12 });
@@ -612,19 +821,77 @@ try {
       `(() => {
         const summary = document.querySelector('[data-testid="selection-summary"]');
         const image = summary?.querySelector('img');
-        return Number(summary?.getAttribute('data-detected-candles') ?? 0) >= 20 &&
-          image instanceof HTMLImageElement && image.src.startsWith('data:image/png;base64,');
+        return Number(summary?.getAttribute('data-detected-candles') ?? 0) >= 5 &&
+          image instanceof HTMLImageElement && image.src.startsWith('data:image/png;base64,') &&
+          Boolean(document.querySelector('[data-testid="analysis-loading"]'));
       })()`,
-      '本地截取并识别框选 K 线图像',
+      '本地截取图像并自动进入框选分析',
     );
     await sidePanel.screenshot(resultPath('selection-recognized'));
+    await sidePanel.waitFor(
+      `(() => {
+        const loading = document.querySelector('[data-testid="analysis-loading"]');
+        const selection = document.querySelector('[data-testid="selection-summary"]');
+        return loading?.getAttribute('aria-busy') === 'true' &&
+          Boolean(document.querySelector('[data-testid="cancel-analysis"]')) &&
+          Boolean(selection) && !document.querySelector('.market-chart') &&
+          !document.querySelector('.signal');
+      })()`,
+      '框选分析 Loading 界面',
+    );
+    await sidePanel.screenshot(resultPath('selection-loading'));
+    await sidePanel.evaluate(`document.querySelector('[data-testid="cancel-analysis"]')?.click()`);
+    await sidePanel.waitFor(
+      `(() => {
+        const control = globalThis.__klaE2EControlTraces.at(-1);
+        return !document.querySelector('[data-testid="analysis-loading"]') &&
+          !document.querySelector('[data-testid="selection-summary"]') &&
+          Boolean(document.querySelector('[data-testid="analysis-empty"]')) &&
+          !document.querySelector('.market-chart') && !document.querySelector('.signal') &&
+          !document.querySelector('.error') &&
+          control?.message?.type === 'CANCEL_ANALYSIS' && control.response?.ok === true;
+      })()`,
+      '取消框选分析并清理选区状态',
+    );
+    await waitForAbortedMarketRequest(serviceWorker, '取消框选分析');
+    await sidePanel.waitFor(
+      `globalThis.__klaE2EAnalysisTraces.at(-1)?.response?.error?.code === 'E_ANALYSIS_CANCELLED'`,
+      '后台确认框选分析已取消',
+    );
+    await sidePanel.screenshot(resultPath('selection-cancelled'));
+    const cancelledState = await sidePanel.evaluate(`(async () => {
+      const traceCount = globalThis.__klaE2EAnalysisTraces.length;
+      const response = await chrome.runtime.sendMessage({
+        id: crypto.randomUUID(),
+        traceId: crypto.randomUUID(),
+        type: 'GET_STATE',
+        source: 'drawer',
+        tabId: ${marketTabId},
+        payload: { url: ${JSON.stringify(profile.url)}, title: '' },
+        timestamp: Date.now()
+      });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return {
+        selection: response?.data?.selection,
+        traceCount,
+        nextTraceCount: globalThis.__klaE2EAnalysisTraces.length
+      };
+    })()`);
+    if (cancelledState?.selection || cancelledState?.traceCount !== cancelledState?.nextTraceCount)
+      throw new Error(`取消后的框选状态复活或自动重跑：${JSON.stringify(cancelledState)}`);
+    await restoreActiveMarketRequests(serviceWorker);
     await sidePanel.evaluate(`(() => {
-      const button = document.querySelector('[data-testid="run-analysis"]');
+      const button = document.querySelector('[data-testid="select-candles"]');
       if (!(button instanceof HTMLButtonElement) || button.disabled)
-        throw new Error('框选后的开始分析按钮不可用');
+        throw new Error('取消后无法重新框选');
       button.click();
       return true;
     })()`);
+    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', { timeout: 5_000 });
+    await marketPage.mouse.move(startX, startY);
+    await marketPage.mouse.down();
+    await marketPage.mouse.move(endX, endY, { steps: 12 });
+    await marketPage.mouse.up();
     await sidePanel.waitFor(
       `(() => {
         const trace = globalThis.__klaE2EAnalysisTraces.at(-1);
@@ -644,49 +911,18 @@ try {
     );
     await sidePanel.screenshot(resultPath('selection-analysis'));
 
-    await sidePanel.evaluate(`(() => {
-      const button = document.querySelector('[data-testid="select-candles"]');
-      if (!(button instanceof HTMLButtonElement) || button.disabled)
-        throw new Error('第二次框选按钮不可用');
-      button.click();
-      return true;
-    })()`);
-    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', { timeout: 5_000 });
-    const smallStartX = chartBounds.left + 30;
-    const smallEndX = smallStartX + (840 / 60) * 10;
-    await marketPage.mouse.move(smallStartX, chartBounds.top + 10);
-    await marketPage.mouse.down();
-    await marketPage.mouse.move(smallEndX, chartBounds.top + chartBounds.height - 30, {
-      steps: 8,
-    });
-    await marketPage.mouse.up();
-    await sidePanel.waitFor(
-      `(() => {
-        const summary = document.querySelector('[data-testid="selection-summary"]');
-        const count = Number(summary?.getAttribute('data-detected-candles') ?? 0);
-        return count >= 8 && count < 20;
-      })()`,
-      '识别少于 20 根的小选区',
-    );
-    await sidePanel.evaluate(`(() => {
-      const button = document.querySelector('[data-testid="run-analysis"]');
-      if (!(button instanceof HTMLButtonElement) || button.disabled)
-        throw new Error('小选区分析按钮不可用');
-      button.click();
-      return true;
-    })()`);
+    await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
     await sidePanel.waitFor(
       `(() => {
         const trace = globalThis.__klaE2EAnalysisTraces.at(-1);
-        const error = document.querySelector('.error')?.textContent ?? '';
-        return trace?.response?.ok === false &&
-          trace.response.error?.code === 'E_SELECTION_CANDLES_INSUFFICIENT' &&
-          error.includes('20') && error.includes('19') &&
-          !document.querySelector('.market-chart') && !document.querySelector('.signal');
+        return trace?.response?.ok === true &&
+          trace.response.data.context?.mode === 'configured-request' &&
+          !document.querySelector('[data-testid="selection-summary"]') &&
+          Boolean(document.querySelector('[data-testid="analysis-window"]'));
       })()`,
-      '小选区明确提示至少 20 根并要求大于 19 根',
+      '手工分析替换框选状态和结果',
     );
-    await sidePanel.screenshot(resultPath('selection-insufficient'));
+    await sidePanel.screenshot(resultPath('manual-replaces-selection'));
   }
 
   await sidePanel.evaluate(`(() => {

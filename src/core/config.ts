@@ -58,6 +58,8 @@ export function resolveAnalysisConfigForMarket(
 
 export function getAnalysisConfigError(config: UserConfig): LocalizedMessage | undefined {
   if (!isAnalysisPeriod(config.analysisPeriod)) return message('error_config_period_invalid');
+  if (!Number.isFinite(config.analysisCandleCount))
+    return message('error_config_candle_count_required');
   if (!Number.isInteger(config.analysisCandleCount))
     return message('error_config_candle_count_integer');
   if (config.analysisCandleCount < MIN_ANALYSIS_CANDLES)

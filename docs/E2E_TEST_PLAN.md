@@ -198,7 +198,7 @@ MAIN World → ISOLATED Content Script → Service Worker
 - 支撑位为分析窗口最低 `low`，阻力位为最高 `high`。
 - `volumeSummary.ratio = latest / average`，允许误差 `1e-6`。
 - 放量突破 fixture 必须得到 `MARKUP / BUY / B003`。
-- 少于用户配置数量、低于系统下限 20 根或成交量缺失时不得生成正式分析结果。
+- 少于用户配置数量、低于系统下限 5 根时不得生成正式分析结果；5–19 根允许分析但必须显示短样本警告并限制置信度。
 - symbol 或 period 无法确认时，报告必须标记“数据身份未确认”；正式产品应降级为 `HOLD/UNKNOWN`，该行为需后续实现。
 - 未收盘 K 线只能产生预览结果；在模型支持 `closed` 字段前，应在报告中标记风险。
 
@@ -274,6 +274,9 @@ MAIN World → ISOLATED Content Script → Service Worker
 8. 两个站点分别保存行情页、200 根、64 根、响应式和重置后的真实 Side Panel 截图，失败时保存对应站点的 `e2e-failure.png`。
 9. 分别以 `en-US` 和 `zh-CN` 启动 Chrome，校验 `chrome.i18n.getUILanguage()`、Popup、Side Panel 和分析结果的语言一致。
 10. 断言界面不直接暴露 `BUY`、`MARKUP`等内部状态枚举，但后台响应仍保留这些稳定机器值。
+11. 强制行情请求保持挂起，验证普通分析和框选分析均显示可取消 Loading；取消后唯一在途请求收到 abort，不触发下一次重试，且后续分析成功。
+12. 在计算中点击右上角重置，验证后台任务中止、界面与 Tab 会话清空，并能从默认参数重新分析成功。
+13. 强制首次 `START_SELECTION` 返回“Receiving end does not exist”，验证侧边栏按 MAIN、ISOLATED 顺序恢复包内脚本并自动重试，页面出现框选遮罩且不显示原始连接错误。
 
 发布打包命令 `npm run package` 必须先通过 Binance 英文和同花顺简体中文的真实站点 E2E，避免仅凭单元测试发布。商店截图生成会进一步运行两个站点的中英文组合。
 
@@ -313,7 +316,7 @@ TradingView 至少覆盖两个 symbol、两个 period；Binance 和同花顺分�
 - 成交量为负、`NaN` 或无穷大。
 - 同一未收盘 K 线被重复追加。
 - 当前 K 线更新修改了其他已收盘历史 K 线。
-- 少于用户配置数量、低于系统下限 20 根或成交量缺失仍输出正式 `BUY/SELL`。
+- 少于用户配置数量或低于系统下限 5 根仍输出正式结果；5–19 根未显示短样本警告或未限制置信度。
 - 两个 Tab 或两个 symbol 数据混合。
 - Worker 已有候选但 Drawer 一直显示等待。
 - 图表空白、K线和成交量数量不一致。

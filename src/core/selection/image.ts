@@ -6,9 +6,12 @@ import type {
   SelectionRange,
 } from '../model/types';
 import type { MarketSite } from '../adapter/sites';
+import { MIN_SELECTION_DATE_EVIDENCE } from '../model/types';
 
 type PixelSource = { width: number; height: number; data: Uint8ClampedArray };
 type CandleColor = SelectionImageEvidence['candleColors'][number];
+type ColorGroup = { start: number; end: number; color: CandleColor };
+const MIN_DATE_MATCH_MARGIN = 0.08;
 
 const classifyColor = (red: number, green: number, blue: number): CandleColor => {
   const max = Math.max(red, green, blue);
@@ -50,7 +53,7 @@ export function detectCandleColors(source: PixelSource): Omit<SelectionImageEvid
     }
   }
   // 已在颜色层排除紫/粉均线，这里保留细小实体和影线，避免窄幅行情被漏检。
-  const threshold = Math.max(3, Math.floor(height * 0.009));
+  const threshold = Math.max(1, Math.floor(height * 0.003));
   const active = Array.from({ length: width }, (_, x) => green[x] + red[x] >= threshold);
   const groups: Array<{ start: number; end: number }> = [];
   let start = -1;
@@ -66,9 +69,9 @@ export function detectCandleColors(source: PixelSource): Omit<SelectionImageEvid
   }
   if (start >= 0) groups.push({ start, end: last });
 
-  const candleColors = groups
+  const colorGroups: ColorGroup[] = groups
     .filter((group) => group.end - group.start + 1 <= Math.max(24, width * 0.08))
-    .map((group): CandleColor => {
+    .map((group): ColorGroup => {
       let greenCount = 0;
       let redCount = 0;
       for (let x = group.start; x <= group.end; x += 1) {
@@ -76,14 +79,58 @@ export function detectCandleColors(source: PixelSource): Omit<SelectionImageEvid
         redCount += red[x];
       }
       const total = greenCount + redCount;
-      if (total < threshold * 2 || Math.max(greenCount, redCount) / total < 0.58) return 'unknown';
-      return greenCount > redCount ? 'green' : 'red';
+      const color =
+        total < threshold * 2 || Math.max(greenCount, redCount) / total < 0.58
+          ? 'unknown'
+          : greenCount > redCount
+            ? 'green'
+            : 'red';
+      return { ...group, color };
     });
+  const knownGroups = colorGroups.filter((group) => group.color !== 'unknown');
+  const centers = knownGroups.map((group) => (group.start + group.end) / 2);
+  const positiveGaps = centers
+    .slice(1)
+    .map((center, index) => center - centers[index])
+    .filter((gap) => gap >= 2)
+    .sort((left, right) => left - right);
+  // 相邻实体偶尔会被均线连在一起或因十字星而漏掉。用较小的典型中心间距重建
+  // 等间隔槽位，漏检处保留 unknown，避免后续所有蜡烛发生整体错位。
+  const candleSpacing = positiveGaps.length
+    ? positiveGaps[Math.min(positiveGaps.length - 1, Math.floor(positiveGaps.length * 0.35))]
+    : undefined;
+  const slotCount = Math.min(
+    1000,
+    candleSpacing && centers.length > 1
+      ? Math.min(
+          Math.max(centers.length, Math.round((centers.at(-1)! - centers[0]) / candleSpacing) + 1),
+          centers.length * 4,
+        )
+      : centers.length,
+  );
+  const candleColors: CandleColor[] = Array.from({ length: slotCount }, () => 'unknown');
+  const candleCenters: number[] = Array.from(
+    { length: slotCount },
+    (_, index) => (centers[0] ?? 0) + index * (candleSpacing ?? 0),
+  );
+  knownGroups.forEach((group) => {
+    const center = (group.start + group.end) / 2;
+    const slot = candleSpacing ? Math.round((center - centers[0]) / candleSpacing) : 0;
+    if (slot >= 0 && slot < candleColors.length) candleColors[slot] = group.color;
+  });
   const known = candleColors.filter((color) => color !== 'unknown').length;
   const confidence = Math.round(
     Math.min(100, (known / Math.max(1, candleColors.length)) * 70 + Math.min(30, known * 2)),
   );
-  return { width, height, candleColors, detectedCandles: candleColors.length, confidence };
+  return {
+    width,
+    height,
+    candleColors,
+    candleCenters,
+    ...(candleSpacing ? { candleSpacing } : {}),
+    detectedCandles: candleColors.length,
+    confidence,
+  };
 }
 
 const marketDirection = (candle: Candle) =>
@@ -103,7 +150,7 @@ export function matchCandleSequence(
 ): { startIndex: number; endIndex: number; confidence: number } | undefined {
   const observed = colors.map((color) => observedDirection(color, site));
   const known = observed.filter((direction) => direction !== 'unknown').length;
-  if (known < 8 || candles.length < observed.length) return undefined;
+  if (known < MIN_SELECTION_DATE_EVIDENCE || candles.length < observed.length) return undefined;
   let best = { startIndex: -1, score: -1 };
   let secondScore = -1;
   for (let startIndex = 0; startIndex <= candles.length - observed.length; startIndex += 1) {
@@ -117,7 +164,7 @@ export function matchCandleSequence(
       comparable += 1;
       if (actual === expected) matches += 1;
     }
-    if (comparable < 8) continue;
+    if (comparable < MIN_SELECTION_DATE_EVIDENCE) continue;
     const score = matches / comparable;
     if (score > best.score) {
       secondScore = best.score;
@@ -128,7 +175,8 @@ export function matchCandleSequence(
   const confidence = Math.round(
     100 * Math.min(1, best.score * 0.75 + margin * 0.8 + Math.min(0.15, known / 200)),
   );
-  if (best.startIndex < 0 || best.score < 0.72 || confidence < 65) return undefined;
+  if (best.startIndex < 0 || best.score < 0.72 || margin < MIN_DATE_MATCH_MARGIN || confidence < 65)
+    return undefined;
   return {
     startIndex: best.startIndex,
     endIndex: best.startIndex + observed.length - 1,
@@ -142,6 +190,7 @@ export function interpretSelectionRange(
   site: MarketSite,
   allowGeometry: boolean,
 ): SelectionInterpretation | undefined {
+  void allowGeometry; // 保留调用签名；没有可视时间锚点时不再启用几何日期猜测。
   const period = data.period as SelectionInterpretation['period'] | undefined;
   if (!period || data.candles.length === 0) return undefined;
   const match = selection.image
@@ -157,27 +206,7 @@ export function interpretSelectionRange(
       method: 'image-sequence',
     };
   }
-  const chart = selection.chartRect;
-  if (!allowGeometry || !chart || chart.width <= 0) return undefined;
-  const leftRatio = Math.max(0, Math.min(1, (selection.rect.left - chart.left) / chart.width));
-  const rightRatio = Math.max(
-    leftRatio,
-    Math.min(1, (selection.rect.left + selection.rect.width - chart.left) / chart.width),
-  );
-  const startIndex = Math.min(
-    data.candles.length - 1,
-    Math.max(0, Math.floor(leftRatio * data.candles.length)),
-  );
-  const endIndex = Math.min(
-    data.candles.length - 1,
-    Math.max(startIndex, Math.ceil(rightRatio * data.candles.length) - 1),
-  );
-  return {
-    period,
-    startTime: data.candles[startIndex].timestamp,
-    endTime: data.candles[endIndex].timestamp,
-    candleCount: endIndex - startIndex + 1,
-    confidence: 55,
-    method: 'chart-geometry',
-  };
+  // 未取得图表可视区的明确起止时间锚点时，不把像素比例映射到整批行情。
+  // 历史平移、右侧留白或缓存长度变化都会让这种猜测静默落到错误日期。
+  return undefined;
 }

@@ -24,7 +24,7 @@ describe('active market adapters', () => {
     expect(() =>
       createActiveMarketRequest('https://www.binance.com/en/trade/BTC_USDT', {
         ...DEFAULT_CONFIG,
-        analysisCandleCount: 19,
+        analysisCandleCount: 4,
       }),
     ).toThrowError(expect.objectContaining({ code: 'E_ANALYSIS_CONFIG_INVALID' }));
   });
@@ -289,6 +289,57 @@ describe('active market adapters', () => {
       await vi.advanceTimersByTimeAsync(ACTIVE_MARKET_RETRY_DELAY_MS * ACTIVE_MARKET_MAX_RETRIES);
       await assertion;
       expect(fetcher).toHaveBeenCalledTimes(ACTIVE_MARKET_MAX_RETRIES + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('aborts an active request and never schedules a retry after cancellation', async () => {
+    const controller = new AbortController();
+    const fetcher = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(init.signal?.reason ?? new DOMException('cancelled', 'AbortError')),
+            { once: true },
+          );
+        }),
+    ) as unknown as typeof fetch;
+
+    const pending = fetchActiveMarketData(
+      'https://www.binance.com/en/trade/BTC_USDT?type=spot',
+      DEFAULT_CONFIG,
+      fetcher,
+      undefined,
+      controller.signal,
+    );
+    controller.abort(new DOMException('cancelled', 'AbortError'));
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it('cancels during the 200ms retry wait without sending the next request', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new AbortController();
+      const fetcher = vi.fn(
+        async () => new Response('', { status: 502 }),
+      ) as unknown as typeof fetch;
+      const pending = fetchActiveMarketData(
+        'https://stockpage.10jqka.com.cn/600487/',
+        DEFAULT_CONFIG,
+        fetcher,
+        undefined,
+        controller.signal,
+      );
+      await vi.advanceTimersByTimeAsync(ACTIVE_MARKET_RETRY_DELAY_MS / 2);
+      controller.abort(new DOMException('cancelled', 'AbortError'));
+
+      await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+      await vi.runAllTimersAsync();
+      expect(fetcher).toHaveBeenCalledOnce();
     } finally {
       vi.useRealTimers();
     }

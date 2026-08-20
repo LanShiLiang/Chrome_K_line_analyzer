@@ -22,12 +22,18 @@
 {
   "manifest_version": 3,
   "name": "K Line Analyzer",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "K 线量价分析与维科夫策略辅助工具",
   "action": { "default_popup": "popup.html", "default_title": "K Line Analyzer" },
   "background": { "service_worker": "background.js", "type": "module" },
-  "permissions": ["storage", "activeTab", "sidePanel"],
-  "host_permissions": ["https://data-api.binance.vision/*", "https://d.10jqka.com.cn/*"],
+  "permissions": ["storage", "activeTab", "sidePanel", "scripting"],
+  "host_permissions": [
+    "https://stockpage.10jqka.com.cn/*",
+    "https://*.tradingview.com/*",
+    "https://www.binance.com/*",
+    "https://data-api.binance.vision/*",
+    "https://d.10jqka.com.cn/*"
+  ],
   "content_scripts": [
     {
       "matches": [
@@ -54,25 +60,27 @@
 }
 ```
 
-| 字段                        | 用途                 | 落地建议                       |
-| --------------------------- | -------------------- | ------------------------------ |
-| `manifest_version`          | 使用 MV3             | 固定为 3                       |
-| `background.service_worker` | 后台事件中心         | 使用 ES Module                 |
-| `permissions.storage`       | 保存配置与历史       | 必需                           |
-| `permissions.activeTab`     | 当前 Tab 受控访问    | 必需                           |
-| `permissions.sidePanel`     | 提供分析侧边面板     | 必需                           |
-| `host_permissions`          | 主动请求匿名行情接口 | 仅允许 Binance、同花顺行情域名 |
-| `content_scripts.matches`   | 注入站点页面         | 仅允许当前支持的三个站点       |
+| 字段                        | 用途                       | 落地建议                       |
+| --------------------------- | -------------------------- | ------------------------------ |
+| `manifest_version`          | 使用 MV3                   | 固定为 3                       |
+| `background.service_worker` | 后台事件中心               | 使用 ES Module                 |
+| `permissions.storage`       | 保存配置与历史             | 必需                           |
+| `permissions.activeTab`     | 当前 Tab 受控访问          | 必需                           |
+| `permissions.sidePanel`     | 提供分析侧边面板           | 必需                           |
+| `permissions.scripting`     | 扩展更新后按需恢复页面桥接 | 仅在受支持站点接收端缺失时使用 |
+| `host_permissions`          | 主动请求匿名行情接口       | 仅允许 Binance、同花顺行情域名 |
+| `content_scripts.matches`   | 注入站点页面               | 仅允许当前支持的三个站点       |
 
 16、32、48、128 px PNG 图标由两份清单共同声明，其中 128 px 图标必须进入发布 ZIP。商店截图和宣传图不进入扩展 ZIP，统一保存在 `store-assets/` 供 Developer Dashboard 上传。
 
 ## 4. 权限设计
 
-| 权限        | 是否必需 | 使用场景                     | 风险         | 控制措施                       |
-| ----------- | -------- | ---------------------------- | ------------ | ------------------------------ |
-| `storage`   | 是       | 用户配置、历史记录、调试日志 | 本地数据泄露 | 不存敏感身份信息，提供清理入口 |
-| `activeTab` | 是       | 用户主动点击后访问当前页面   | 越权访问页面 | 只在用户交互后触发             |
-| `sidePanel` | 是       | 使用 Chrome 原生 Side Panel  | 兼容性约束   | 仅承载本地分析界面             |
+| 权限        | 是否必需 | 使用场景                      | 风险         | 控制措施                       |
+| ----------- | -------- | ----------------------------- | ------------ | ------------------------------ |
+| `storage`   | 是       | 用户配置、历史记录、调试日志  | 本地数据泄露 | 不存敏感身份信息，提供清理入口 |
+| `activeTab` | 是       | 用户主动点击后访问当前页面    | 越权访问页面 | 只在用户交互后触发             |
+| `sidePanel` | 是       | 使用 Chrome 原生 Side Panel   | 兼容性约束   | 仅承载本地分析界面             |
+| `scripting` | 是       | 扩展更新后恢复 Content Script | 动态注入风险 | 仅限清单列出的站点及包内脚本   |
 
 ## 5. 运行上下文设计
 

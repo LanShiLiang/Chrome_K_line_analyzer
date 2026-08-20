@@ -29,7 +29,7 @@
 > - Volume Price Analysis：统一分析 OHLCV 与成交量变化。
 > - Wyckoff Analysis：识别吸筹、Spring 测试、拉升、派发和下跌等结构。
 > - Local Processing：策略计算和分析结果留在浏览器本地，不上传至开发者服务器。
-> - Adjustable Context：支持 30 分钟、1 小时、4 小时、日、周、月周期和最多 1000 根 K 线，计算时明确要求至少 20 根。
+> - Adjustable Context：支持 30 分钟、1 小时、4 小时、日、周、月周期和 5–1000 根 K 线，并在请求前进行清晰的本地校验。
 > - Local Selection Recognition：从用户主动框选的图表区域识别周期和准确日期范围，使用对应公开 K 线完成分析和绘图，不上传截图。
 > - Resilient Market Access：公开行情发生瞬时故障时，仅在前一次请求结束后串行重试，不产生并发重试突发。
 > - Explainable Results：展示结论依据、置信度和风险提示，而不是自动下单或收益承诺。
@@ -51,16 +51,17 @@
 
 ## 权限说明
 
-| 权限或域名                          | 对用户可见功能                                       | 必要性                                         |
-| ----------------------------------- | ---------------------------------------------------- | ---------------------------------------------- |
-| `storage`                           | 保存分析周期、K 线数量和策略设置                     | 仅使用 `chrome.storage.local`，不使用同步存储  |
-| `activeTab`                         | 识别当前活动行情标签页，并截取用户主动框选的图表区域 | 绑定当前 Tab 并在本地完成选区图像识别          |
-| `sidePanel`                         | 在行情页旁显示分析台                                 | 产品的唯一界面宿主                             |
-| `https://www.binance.com/*`         | 识别当前 Binance 交易页并接收页面行情上下文          | 仅在明确支持的 Binance 页面运行 Content Script |
-| `https://*.tradingview.com/*`       | 只读解析当前 TradingView 页面已有 WebSocket K 线消息 | TradingView 没有由扩展发起的行情请求           |
-| `https://stockpage.10jqka.com.cn/*` | 识别当前同花顺证券页                                 | 仅在明确支持的同花顺页面运行 Content Script    |
-| `https://data-api.binance.vision/*` | 用户开始分析时获取对应交易对的公开 K 线              | 请求使用 `credentials: "omit"`                 |
-| `https://d.10jqka.com.cn/*`         | 用户开始分析时获取对应证券的公开 K 线                | 请求使用 `credentials: "omit"`                 |
+| 权限或域名                          | 对用户可见功能                                       | 必要性                                                   |
+| ----------------------------------- | ---------------------------------------------------- | -------------------------------------------------------- |
+| `storage`                           | 保存分析周期、K 线数量和策略设置                     | 仅使用 `chrome.storage.local`，不使用同步存储            |
+| `activeTab`                         | 识别当前活动行情标签页，并截取用户主动框选的图表区域 | 绑定当前 Tab 并在本地完成选区图像识别                    |
+| `sidePanel`                         | 在行情页旁显示分析台                                 | 产品的唯一界面宿主                                       |
+| `scripting`                         | 扩展更新后恢复受支持行情页的通信桥接                 | 仅在页面接收端缺失时运行包内 `inject.js` 与 `content.js` |
+| `https://www.binance.com/*`         | 识别当前 Binance 交易页并接收页面行情上下文          | 仅在明确支持的 Binance 页面运行 Content Script           |
+| `https://*.tradingview.com/*`       | 只读解析当前 TradingView 页面已有 WebSocket K 线消息 | TradingView 没有由扩展发起的行情请求                     |
+| `https://stockpage.10jqka.com.cn/*` | 识别当前同花顺证券页                                 | 仅在明确支持的同花顺页面运行 Content Script              |
+| `https://data-api.binance.vision/*` | 用户开始分析时获取对应交易对的公开 K 线              | 请求使用 `credentials: "omit"`                           |
+| `https://d.10jqka.com.cn/*`         | 用户开始分析时获取对应证券的公开 K 线                | 请求使用 `credentials: "omit"`                           |
 
 生产 Manifest 不包含 `localhost`、`127.0.0.1`、`<all_urls>`、Cookie、History、Web Request 或远程代码权限。
 
@@ -117,7 +118,7 @@ Dashboard 的具体字段名称可能随界面更新而变化，含义应按以�
 ## 提交前核对
 
 - 运行 `npm.cmd run package`，确认全部单元测试、类型检查、构建审计以及真实 Binance、同花顺 E2E 通过。
-- 解压 `release/k-line-analyzer-0.1.2.zip`，确认根目录 `manifest.json` 与 `manifest.prod.json` 一致。
+- 解压 `release/k-line-analyzer-0.1.3.zip`，确认根目录 `manifest.json` 与 `manifest.prod.json` 一致。
 - 搜索 ZIP 内容，确认没有 `localhost`、`127.0.0.1`、源代码、Source Map、测试文件或商店宣传素材。
 - 确认 ZIP 内包含 16、32、48、128 px PNG 图标，Manifest 的 `icons` 和 `action.default_icon` 均可解析。
 - 上传三张 1280×800 最新主题截图、128×128 图标和 440×280 小型宣传图；确认其中包含 Binance 与同花顺实际使用场景。

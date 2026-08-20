@@ -67,6 +67,10 @@ const onRuntimeMessage = (
     });
     sendResponse({ ok: true });
   }
+  if (message.type === 'CANCEL_SELECTION') {
+    cancelActiveSelection?.();
+    sendResponse({ ok: true });
+  }
   if (message.type === 'GET_STATE')
     sendResponse({
       ok: true,

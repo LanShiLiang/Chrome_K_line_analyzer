@@ -23,13 +23,15 @@ Refresh the market page after installing or reloading the extension.
 1. Click the K Line Analyzer toolbar icon.
 2. Select **Open Side Panel**.
 3. Confirm that the panel recognizes the current supported site.
-4. Select a chart area containing clear candle bodies. The extension captures only that selected area, recognizes the candle colors locally, and does not upload the image.
-5. Select **Start Analysis**.
-6. Review the localized strategy result, stage, confidence, evidence, warnings, and chart.
+4. Select one continuous main-chart area. Five candles meet the calculation minimum, but image-only date matching needs at least 12 candles with clear directions to identify a unique range. The extension captures and processes only that area locally.
+5. Releasing the mouse automatically identifies the period and dates, fetches that market range, and starts analysis. The loading view can safely cancel the operation.
+6. Review the strategy result, stage, confidence, evidence, and the final symbol, period, candle count, and start/end times shown under **Analysis Window**.
+
+Selection and configured analysis are independent: a new selection replaces the current configured result; selecting **Start Analysis** runs the saved settings and replaces the old selection and its result.
 
 ## Settings
 
-Binance and Tonghuashun allow 30-minute, 1-hour, 4-hour, daily, weekly, and monthly periods. The number input accepts normal typing from 1 to 1000, while the current strategy clearly reports that at least 20 candles are required before calculation. One valid candle-count setting drives both calculation and chart rendering and is saved locally.
+Binance and Tonghuashun allow 30-minute, 1-hour, 4-hour, daily, weekly, and monthly periods. The number input can be cleared while editing and accepts 5–1000 candles; invalid drafts show a local message and send no market request. One valid candle-count setting drives both calculation and chart rendering and is saved locally.
 
 TradingView follows the current chart period and the data actually captured from that chart. Its strategy settings remain locked in both the interface and background processing.
 
@@ -48,7 +50,7 @@ Selected-area screenshots, market data, and analysis results stay in runtime mem
 - If the panel cannot find market data, refresh the supported market page and wait for its chart to load.
 - If the extension was reloaded, refresh the market page to replace stale Content and Inject scripts.
 - If the page or symbol changes during analysis, wait for synchronization and run the analysis again.
-- If the input or selected area contains fewer than 20 candles, enter or select more than 19 candles as instructed by the visible validation message.
+- Enter at least 5 candles for configured analysis. For selection date matching, choose at least 12 consecutive candles with clear directions; the panel distinguishes the calculation minimum from insufficient date evidence.
 - TradingView availability depends on data already streamed by its current chart; use Binance or Tonghuashun for the recommended active path.
 
 ## Disclaimer

@@ -61,7 +61,7 @@ describe('normalizeCandles', () => {
 
 describe('assessQuality', () => {
   it('reports insufficient data and missing volume', () => {
-    const candles = Array.from({ length: 19 }, (_, i) => ({
+    const candles = Array.from({ length: 4 }, (_, i) => ({
       timestamp: i + 1,
       open: 1,
       high: 2,
@@ -73,7 +73,7 @@ describe('assessQuality', () => {
     expect(quality.valid).toBe(false);
     expect(quality.warnings).toEqual(
       expect.arrayContaining([
-        message('warning_insufficient_data', [20]),
+        message('warning_insufficient_data', [5]),
         message('warning_missing_volume'),
       ]),
     );
