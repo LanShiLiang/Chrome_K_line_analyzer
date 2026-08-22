@@ -649,6 +649,37 @@ try {
     type: 'png',
   });
 
+  const settingsHoverPoint = await sidePanel.evaluate(`(() => {
+    const settings = document.querySelector('[data-testid="open-config"]');
+    if (!(settings instanceof HTMLButtonElement) || settings.disabled)
+      throw new Error('齿轮悬停测试前按钮不可用');
+    const bounds = settings.getBoundingClientRect();
+    return { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
+  })()`);
+  await sidePanel.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: settingsHoverPoint.x,
+    y: settingsHoverPoint.y,
+  });
+  await sidePanel.waitFor(
+    `(() => {
+      const settings = document.querySelector('[data-testid="open-config"]');
+      const icon = settings?.querySelector('svg');
+      if (!(settings instanceof HTMLButtonElement) || !(icon instanceof SVGElement)) return false;
+      const buttonStyle = getComputedStyle(settings);
+      const glowStyle = getComputedStyle(settings, '::before');
+      const iconStyle = getComputedStyle(icon);
+      return buttonStyle.backgroundColor === 'rgba(0, 0, 0, 0)' &&
+        buttonStyle.backgroundImage === 'none' &&
+        glowStyle.opacity === '1' &&
+        iconStyle.transform !== 'none' &&
+        iconStyle.filter.includes('drop-shadow');
+    })()`,
+    '齿轮透明悬停、局部光晕与上移动效',
+  );
+  await sidePanel.screenshot(resultPath('settings-hover'));
+  await sidePanel.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 });
+
   await sidePanel.evaluate(`document.querySelector('[data-testid="open-config"]')?.click()`);
   await sidePanel.waitFor(
     `Boolean(document.querySelector('[data-testid="config-dialog"]'))`,

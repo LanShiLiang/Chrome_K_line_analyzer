@@ -263,12 +263,55 @@ button:disabled {
   border-radius: 0 9px 9px 0;
   background: transparent;
   box-shadow: none;
+  overflow: visible;
+}
+.analysis-settings::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgb(255 255 255 / 20%) 0%,
+    rgb(118 168 255 / 12%) 42%,
+    transparent 72%
+  );
+  opacity: 0;
+  transform: scale(0.68);
+  transition:
+    opacity 160ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.analysis-settings svg {
+  position: relative;
+  z-index: 1;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 180ms ease,
+    color 180ms ease;
 }
 .analysis-settings:hover:not(:disabled) {
   border: 0;
-  background: rgb(255 255 255 / 12%);
+  background: transparent;
   box-shadow: none;
   transform: none;
+}
+.analysis-settings:hover:not(:disabled)::before,
+.analysis-settings:focus-visible::before {
+  opacity: 1;
+  transform: scale(1);
+}
+.analysis-settings:hover:not(:disabled) svg,
+.analysis-settings:focus-visible svg {
+  color: #fff;
+  filter: drop-shadow(0 4px 7px rgb(4 19 52 / 62%)) drop-shadow(0 0 5px rgb(166 202 255 / 48%));
+  transform: translateY(-2px) scale(1.06);
+}
+.analysis-settings:active:not(:disabled) svg {
+  filter: drop-shadow(0 2px 4px rgb(4 19 52 / 48%));
+  transform: translateY(0) scale(0.96);
+  transition-duration: 80ms;
 }
 .status {
   font-size: 13px;
