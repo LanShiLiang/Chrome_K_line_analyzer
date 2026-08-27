@@ -23,11 +23,13 @@ Refresh the market page after installing or reloading the extension.
 1. Click the K Line Analyzer toolbar icon.
 2. Select **Open Side Panel**.
 3. Confirm that the panel recognizes the current supported site.
-4. Select one continuous main-chart area. Five candles meet the calculation minimum, but image-only date matching needs at least 12 candles with clear directions to identify a unique range. The extension captures and processes only that area locally.
-5. Releasing the mouse automatically identifies the period and dates, fetches that market range, and starts analysis. The loading view can safely cancel the operation.
+4. Choose **Start Analysis**, confirm the period and candle count, and start. The panel displays the next-analysis settings below the main button.
+5. The extension fetches the latest configured market window. The loading view can safely cancel the operation.
 6. Review the strategy result, stage, confidence, evidence, and the final symbol, period, candle count, and start/end times shown under **Analysis Window**.
 
-Selection and configured analysis are independent: a new selection replaces the current configured result; selecting **Start Analysis** runs the saved settings and replaces the old selection and its result.
+Chart selection is temporarily disabled in v0.1.4; there is no selection overlay, screenshot capture, or automatic selection analysis. Use the settings button to change the configured window.
+
+Settings support Tab / Shift+Tab navigation, Escape to close, and Enter to submit. **Apply Settings** updates the next analysis without running it. A failed save keeps the dialog and your draft open for retry. Remembering the configuration saves both the period and candle count and skips this dialog on future runs.
 
 ## Settings
 
@@ -43,14 +45,14 @@ The extension has no independent language selector. Change the Chrome UI languag
 
 ## Privacy
 
-Selected-area screenshots, market data, and analysis results stay in runtime memory in the browser and are not uploaded to a developer server. Active public market requests go directly to Binance or Tonghuashun without cookies or login credentials. See the bilingual [Privacy Policy](../PRIVACY.md).
+Market data and analysis results stay in runtime memory in the browser and are not uploaded to a developer server. This version does not capture selection screenshots. Active public market requests go directly to Binance or Tonghuashun without cookies or login credentials. See the bilingual [Privacy Policy](../PRIVACY.md).
 
 ## Troubleshooting
 
 - If the panel cannot find market data, refresh the supported market page and wait for its chart to load.
 - If the extension was reloaded, refresh the market page to replace stale Content and Inject scripts.
 - If the page or symbol changes during analysis, wait for synchronization and run the analysis again.
-- Enter at least 5 candles for configured analysis. For selection date matching, choose at least 12 consecutive candles with clear directions; the panel distinguishes the calculation minimum from insufficient date evidence.
+- Enter at least 5 candles for configured analysis; invalid drafts remain editable and do not send requests.
 - TradingView availability depends on data already streamed by its current chart; use Binance or Tonghuashun for the recommended active path.
 
 ## Disclaimer

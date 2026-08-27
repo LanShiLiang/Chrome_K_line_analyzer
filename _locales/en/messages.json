@@ -2,10 +2,10 @@
   "extension_name": { "message": "K Line Analyzer" },
   "extension_name_dev": { "message": "K Line Analyzer (Dev)" },
   "extension_description": {
-    "message": "Select chart candles, match dates, and run local volume-price and Wyckoff analysis from 30-minute to monthly periods."
+    "message": "Analyze public candlestick data locally with configurable periods and candle counts, volume-price evidence, and Wyckoff stages."
   },
   "extension_description_dev": {
-    "message": "Development build for selecting chart candles and running local volume-price and Wyckoff analysis on supported market pages."
+    "message": "Development build for local volume-price and Wyckoff analysis on supported market pages."
   },
   "action_title": { "message": "Open K Line Analyzer" },
   "action_title_dev": { "message": "Open K Line Analyzer (Dev)" },
@@ -61,14 +61,29 @@
   "drawer_start_analysis": { "message": "Start Analysis" },
   "drawer_open_strategy_settings": { "message": "Open strategy settings" },
   "drawer_config_dialog_title": { "message": "Configure this analysis" },
+  "drawer_apply_config": { "message": "Apply Settings" },
+  "drawer_saving_config": { "message": "Saving…" },
+  "drawer_config_summary": {
+    "message": "Next analysis: $PERIOD$ · latest $COUNT$ candles",
+    "placeholders": {
+      "period": { "content": "$1", "example": "Daily" },
+      "count": { "content": "$2", "example": "200" }
+    }
+  },
+  "error_save_config": {
+    "message": "Settings could not be saved. Your changes are still here; please try again."
+  },
+  "error_selection_disabled": {
+    "message": "Chart selection is currently unavailable. Use Start Analysis with a period and candle count."
+  },
   "drawer_remember_config": {
-    "message": "Keep this configuration and use this period for future analyses"
+    "message": "Remember this period and candle count, and skip this dialog next time"
   },
   "drawer_confirm_config": { "message": "Confirm" },
   "drawer_close_config": { "message": "Close strategy settings" },
   "drawer_empty_title": { "message": "Ready to Analyze" },
   "drawer_empty_description": {
-    "message": "Refresh the market page, then select the target area. The extension will identify OHLCV data from page requests."
+    "message": "Open a supported market page and choose Start Analysis. Confirm the period and candle count to analyze the latest market window."
   },
   "drawer_strategy_conclusion": { "message": "Strategy Result" },
   "drawer_stage": { "message": "Stage" },

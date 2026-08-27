@@ -14,7 +14,6 @@ function App() {
     if (closing) return;
     setClosing(true);
     setError(undefined);
-    await new Promise((resolve) => window.setTimeout(resolve, 180));
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id === undefined) {

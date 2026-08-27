@@ -2,10 +2,10 @@
   "extension_name": { "message": "K 线量价分析器" },
   "extension_name_dev": { "message": "K 线量价分析器（开发版）" },
   "extension_description": {
-    "message": "框选图表 K 线并匹配日期，在支持的行情页面本地分析 30 分钟至月线的量价结构与维科夫阶段。"
+    "message": "按周期和 K 线数量，在支持的行情页面本地分析公开行情的量价结构、分析依据与维科夫阶段。"
   },
   "extension_description_dev": {
-    "message": "开发版：框选图表 K 线并匹配日期，在支持的行情页面本地进行量价与维科夫分析。"
+    "message": "开发版：在支持的行情页面按周期和 K 线数量，本地进行量价与维科夫分析。"
   },
   "action_title": { "message": "打开 K 线量价分析器" },
   "action_title_dev": { "message": "打开 K 线量价分析器（开发版）" },
@@ -53,14 +53,27 @@
   "drawer_start_analysis": { "message": "开始分析" },
   "drawer_open_strategy_settings": { "message": "打开策略设置" },
   "drawer_config_dialog_title": { "message": "配置本次分析" },
+  "drawer_apply_config": { "message": "应用设置" },
+  "drawer_saving_config": { "message": "正在保存…" },
+  "drawer_config_summary": {
+    "message": "下次分析：$PERIOD$ · 最近 $COUNT$ 根",
+    "placeholders": {
+      "period": { "content": "$1", "example": "日线" },
+      "count": { "content": "$2", "example": "200" }
+    }
+  },
+  "error_save_config": { "message": "设置未能保存，已保留你的修改，请重试。" },
+  "error_selection_disabled": {
+    "message": "框选暂未开放，请设置周期和 K 线数量后点击“开始分析”。"
+  },
   "drawer_remember_config": {
-    "message": "保留本次配置，之后都用这个级别进行分析"
+    "message": "记住周期和 K 线数量，下次直接分析，不再弹出此窗口"
   },
   "drawer_confirm_config": { "message": "确定" },
   "drawer_close_config": { "message": "关闭策略设置" },
   "drawer_empty_title": { "message": "等待分析" },
   "drawer_empty_description": {
-    "message": "刷新行情页面后框选目标区域，插件会从页面请求中识别 OHLCV 数据。"
+    "message": "打开支持的行情页面，点击“开始分析”，确认周期和 K 线数量，即可分析最近的行情区间。"
   },
   "drawer_strategy_conclusion": { "message": "策略结论" },
   "drawer_stage": { "message": "阶段" },

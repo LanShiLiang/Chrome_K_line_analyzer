@@ -186,7 +186,7 @@ describe('Chrome Web Store assets', () => {
     expect(styles).toContain('linear-gradient(90deg, #315fd4 0%, #4f8cff 100%)');
     expect(styles).toContain('body.popup-page');
     expect(styles).not.toMatch(/(?:^|\n)body\s*\{[^}]*min-width:\s*420px/s);
-    expect(styles).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))');
+    expect(styles).toMatch(/\.actions\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
     expect(styles).not.toMatch(/#17b890|#00a878|rgba\(0,\s*168,\s*120/i);
     expect(content).toContain("border: '2px solid #4f8cff'");
     expect(drawer).toContain('upColor: colors.rising');

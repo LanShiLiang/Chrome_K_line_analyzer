@@ -2,6 +2,8 @@ import type { RawMarketPayload, SelectionRange } from '../core/model/types';
 import { isRawMarketPayload } from '../shared/guards';
 import { createMessage, type ExtensionMessage } from '../shared/messages';
 import { extractAnalysisPeriods, extractMarketPeriodTokens } from '../core/selection/period';
+import { SELECTION_ENABLED } from '../shared/features';
+import { message as localizedMessage } from '../shared/i18n-types';
 
 const CHANNEL = 'KLA_MARKET_RESPONSE';
 const CANDIDATE_BROADCAST_INTERVAL_MS = 100;
@@ -62,6 +64,16 @@ const onRuntimeMessage = (
   sendResponse: (response?: unknown) => void,
 ) => {
   if (message.type === 'START_SELECTION') {
+    if (!SELECTION_ENABLED) {
+      sendResponse({
+        ok: false,
+        error: {
+          code: 'E_SELECTION_DISABLED',
+          message: localizedMessage('error_selection_disabled'),
+        },
+      });
+      return;
+    }
     beginSelection().then((selection) => {
       if (selection) sendToBackground(createMessage('SELECTION_DONE', 'content', selection));
     });

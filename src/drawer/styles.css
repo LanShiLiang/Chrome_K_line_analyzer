@@ -239,8 +239,15 @@ button:disabled {
 }
 .actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+}
+.analysis-config-summary {
+  margin: -6px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .analysis-action-group {
   min-width: 0;

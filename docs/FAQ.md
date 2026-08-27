@@ -16,11 +16,11 @@ No. Internal action values, stages, error codes, and evidence codes remain stabl
 
 ## Does the extension upload market data or results?
 
-No. Selected-area screenshots, image matching, and analysis run locally, and none of them are uploaded to a developer server. Public market requests go directly to the declared Binance or Tonghuashun endpoints.
+No. Market analysis runs locally and is not uploaded to a developer server. Public market requests go directly to the declared Binance or Tonghuashun endpoints. This version does not capture selection screenshots.
 
-## How does selected-image analysis identify dates?
+## Where is chart selection?
 
-The extension captures only the chart rectangle explicitly selected by the user, detects red/green candle groups locally, identifies the current chart period from page market context, and matches the color sequence against normalized OHLCV. If the period or date range cannot be matched reliably, it asks the user to select again instead of inventing a range.
+Chart selection is temporarily disabled in v0.1.4, including old selection messages and automatic analysis. Choose Start Analysis and configure the period and candle count instead.
 
 ## Why are TradingView settings locked?
 

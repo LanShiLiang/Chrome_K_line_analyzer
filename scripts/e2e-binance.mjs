@@ -151,10 +151,19 @@ const createTargetClient = async (cdp, targetId) => {
   };
 
   const screenshot = async (path) => {
+    // 原生 Side Panel 的默认截图裁剪框可能沿用调整宽度前的值，显式使用当前视口。
+    const clip = await evaluate(`({
+      x: 0, y: 0, width: innerWidth,
+      height: document.querySelector('[data-testid="config-dialog"]')
+        ? innerHeight
+        : Math.max(innerHeight, document.documentElement.scrollHeight),
+      scale: 1
+    })`);
     const image = await send('Page.captureScreenshot', {
       format: 'png',
       fromSurface: true,
       captureBeyondViewport: true,
+      clip,
     });
     await writeFile(path, Buffer.from(image.data, 'base64'));
   };
@@ -414,7 +423,6 @@ try {
     });
     globalThis.__klaE2EAnalysisTraces = [];
     globalThis.__klaE2EControlTraces = [];
-    globalThis.__klaE2EContentRecovery = { forcedFailures: 0, injections: [] };
     const sendMessage = chrome.runtime.sendMessage.bind(chrome.runtime);
     chrome.runtime.sendMessage = async (message) => {
       const response = await sendMessage(message);
@@ -424,31 +432,130 @@ try {
         globalThis.__klaE2EControlTraces.push({ message, response });
       return response;
     };
-    const sendTabMessage = chrome.tabs.sendMessage.bind(chrome.tabs);
-    chrome.tabs.sendMessage = async (tabId, message, options) => {
-      if (message?.type === 'START_SELECTION' &&
-          globalThis.__klaE2EContentRecovery.forcedFailures === 0) {
-        globalThis.__klaE2EContentRecovery.forcedFailures += 1;
-        throw new Error('Could not establish connection. Receiving end does not exist.');
-      }
-      return options === undefined
-        ? sendTabMessage(tabId, message)
-        : sendTabMessage(tabId, message, options);
-    };
-    const executeScript = chrome.scripting.executeScript.bind(chrome.scripting);
-    chrome.scripting.executeScript = async (injection) => {
-      if (injection?.files?.some((file) => file === 'inject.js' || file === 'content.js')) {
-        globalThis.__klaE2EContentRecovery.injections.push({
-          files: injection.files,
-          world: injection.world
-        });
-        // 此页已有真实 Content Script；记录生产恢复调用但避免在测试页重复安装监听器。
-        return [];
-      }
-      return executeScript(injection);
-    };
     return true;
   })()`);
+
+  // 暂停入口的生产回归：页面不能建遮罩，后台不接受旧选区，UI 忽略迟到广播。
+  await sidePanel.waitFor(
+    `!document.querySelector('[data-testid="select-candles"]') &&
+      document.querySelector('[data-testid="analysis-config-summary"]')?.textContent.includes('200')`,
+    '隐藏框选并展示当前分析参数',
+  );
+  const selectionGate = await serviceWorker.evaluate(async (tabId) => {
+    const message = { type: 'START_SELECTION', source: 'drawer', tabId };
+    return chrome.tabs.sendMessage(tabId, message);
+  }, marketTabId);
+  if (selectionGate?.error?.code !== 'E_SELECTION_DISABLED')
+    throw new Error('Content Script 仍接受框选入口');
+  if (await marketPage.locator('[data-kla-selection-overlay]').count())
+    throw new Error('禁用框选后仍出现遮罩');
+  await sidePanel.evaluate(`(async () => {
+    for (const message of [
+      { type: 'SELECTION_DONE', payload: {} },
+      { type: 'RUN_ANALYSIS', payload: { mode: 'selection' } }
+    ]) {
+      const response = await chrome.runtime.sendMessage({ ...message, source: 'drawer', tabId: ${marketTabId} });
+      if (response?.error?.code !== 'E_SELECTION_DISABLED') throw new Error('后台仍接受旧选区');
+    }
+    globalThis.__klaE2EAnalysisTraces = [];
+  })()`);
+  await serviceWorker.evaluate(async (tabId) => {
+    await chrome.runtime.sendMessage({
+      type: 'SELECTION_UPDATED',
+      source: 'background',
+      tabId,
+      payload: { capturedAt: Date.now(), recognitionStatus: 'ready', image: {} },
+    });
+  }, marketTabId);
+  await delay(250);
+  await sidePanel.waitFor(
+    `!document.querySelector('[data-testid="selection-summary"]') &&
+      !document.querySelector('[data-testid="analysis-loading"]') &&
+      globalThis.__klaE2EAnalysisTraces.length === 0`,
+    '迟到选区不会自动重跑',
+  );
+  await sidePanel.screenshot(resultPath('selection-disabled'));
+
+  // 真实键盘事件验证焦点循环、Esc 返回入口、Enter 提交，以及保存失败保留草稿。
+  const pressKey = async (key, windowsVirtualKeyCode, modifiers = 0) => {
+    await sidePanel.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key,
+      windowsVirtualKeyCode,
+      modifiers,
+      ...(key === 'Enter' ? { text: '\r' } : {}),
+    });
+    await sidePanel.send('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key,
+      windowsVirtualKeyCode,
+      modifiers,
+    });
+  };
+  const openSettings = async () => {
+    await sidePanel.evaluate(`(() => {
+      const button = document.querySelector('[data-testid="open-config"]');
+      button.focus(); button.click();
+    })()`);
+    await sidePanel.waitFor(
+      `document.querySelector('[data-testid="config-dialog"]')?.contains(document.activeElement) &&
+        document.getElementById('root').inert`,
+      '设置弹窗接管键盘焦点',
+    );
+  };
+  await openSettings();
+  await sidePanel.evaluate(`document.querySelector('[data-testid="confirm-config"]').focus()`);
+  await pressKey('Tab', 9);
+  await sidePanel.waitFor(
+    `document.activeElement === document.querySelector('[data-testid="config-dialog"] button.icon')`,
+    'Tab 焦点从末尾回到开头',
+  );
+  await pressKey('Tab', 9, 8);
+  await sidePanel.waitFor(
+    `document.activeElement === document.querySelector('[data-testid="confirm-config"]')`,
+    'Shift Tab 焦点回到末尾',
+  );
+  await pressKey('Escape', 27);
+  await sidePanel.waitFor(
+    `!document.querySelector('[data-testid="config-dialog"]') &&
+      !document.getElementById('root').inert &&
+      document.activeElement === document.querySelector('[data-testid="open-config"]')`,
+    'Esc 关闭后焦点回到设置入口',
+  );
+  await openSettings();
+  await sidePanel.evaluate(`(() => {
+    const input = document.querySelector('input[type="number"]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '96');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+    const originalSet = chrome.storage.local.set.bind(chrome.storage.local);
+    chrome.storage.local.set = async (...args) => {
+      chrome.storage.local.set = originalSet;
+      throw new Error('E2E storage failure');
+    };
+  })()`);
+  await pressKey('Enter', 13);
+  await sidePanel.waitFor(
+    `document.querySelector('[data-testid="config-save-error"]')?.textContent.length > 0 &&
+      document.querySelector('input[type="number"]')?.value === '96' &&
+      document.querySelector('[data-testid="analysis-config-summary"]')?.textContent.includes('200') &&
+      globalThis.__klaE2EAnalysisTraces.length === 0`,
+    '保存失败时保留草稿、不改变生效参数、不发起分析',
+  );
+  await sidePanel.screenshot(resultPath('settings-save-error'));
+  await sidePanel.evaluate(`document.querySelector('[data-testid="confirm-config"]').click()`);
+  await sidePanel.waitFor(
+    `!document.querySelector('[data-testid="config-dialog"]') &&
+      document.querySelector('[data-testid="analysis-config-summary"]')?.textContent.includes('96') &&
+      globalThis.__klaE2EAnalysisTraces.length === 0`,
+    '重试成功后只应用设置，不自动分析',
+  );
+  await sidePanel.evaluate(`document.querySelector('[data-testid="reset-analyzer"]').click()`);
+  await sidePanel.waitFor(
+    `document.querySelector('[data-testid="analysis-config-summary"]')?.textContent.includes('200') &&
+      !document.querySelector('[data-testid="run-analysis"]').disabled`,
+    '恢复默认配置后继续完整分析回归',
+  );
 
   // 人为挂起真实后台行情请求，验证 Loading 可见、取消会中止当前请求且不发送重试。
   await blockActiveMarketRequests(serviceWorker);
@@ -694,6 +801,10 @@ try {
     return true;
   })()`);
   await sidePanel.evaluate(`document.querySelector('[data-testid="confirm-config"]')?.click()`);
+  await sidePanel.waitFor(
+    `!document.querySelector('[data-testid="config-dialog"]')`,
+    '保存参数完成',
+  );
   await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
   await sidePanel.waitFor(renderedAnalysisExpression(64), '按 64 根 K 线重新分析');
   const secondTrace = await sidePanel.evaluate(`globalThis.__klaE2EAnalysisTraces.at(-1)`);
@@ -718,6 +829,10 @@ try {
       return true;
     })()`);
     await sidePanel.evaluate(`document.querySelector('[data-testid="confirm-config"]')?.click()`);
+    await sidePanel.waitFor(
+      `!document.querySelector('[data-testid="config-dialog"]')`,
+      '保存周期完成',
+    );
     await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
     await sidePanel.waitFor(
       `(() => {
@@ -784,367 +899,11 @@ try {
   })()`);
   await sidePanel.evaluate(`document.querySelector('[data-testid="confirm-config"]')?.click()`);
 
-  if (profileName === 'tonghuashun') {
-    const chartBounds = await marketPage.evaluate(() => {
-      const canvas = document.createElement('canvas');
-      canvas.dataset.klaE2eUnsupportedPeriodChart = 'true';
-      canvas.width = 900;
-      canvas.height = 420;
-      Object.assign(canvas.style, {
-        position: 'fixed',
-        left: '80px',
-        top: '110px',
-        width: '900px',
-        height: '420px',
-        zIndex: '2147483000',
-        border: '1px solid #d8dee8',
-        background: '#ffffff',
-      });
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('无法创建同花顺框选 E2E Canvas');
-      context.fillStyle = '#ffffff';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      for (let index = 0; index < 30; index += 1) {
-        const rising = index % 3 !== 1;
-        const color = rising ? '#f23645' : '#089981';
-        const x = 35 + index * 28;
-        const openY = 210 + Math.sin(index / 4) * 55;
-        const closeY = openY + (rising ? -24 : 20);
-        context.strokeStyle = color;
-        context.fillStyle = color;
-        context.lineWidth = 2;
-        context.beginPath();
-        context.moveTo(x, Math.min(openY, closeY) - 15);
-        context.lineTo(x, Math.max(openY, closeY) + 15);
-        context.stroke();
-        context.fillRect(x - 5, Math.min(openY, closeY), 10, Math.abs(closeY - openY));
-      }
-      const period = document.createElement('button');
-      period.textContent = '120分';
-      Object.assign(period.style, {
-        position: 'fixed',
-        left: '80px',
-        top: '70px',
-        zIndex: '2147483001',
-        fontWeight: '900',
-        color: '#111827',
-      });
-      document.documentElement.append(canvas, period);
-      const rect = canvas.getBoundingClientRect();
-      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-    });
-    await serviceWorker.evaluate(() => {
-      chrome.tabs.captureVisibleTab = async () => {
-        throw new Error('E2E forced captureVisibleTab permission failure');
-      };
-    });
-    await sidePanel.evaluate(`document.querySelector('[data-testid="select-candles"]')?.click()`);
-    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', { timeout: 5_000 });
-    await marketPage.mouse.move(chartBounds.left + 15, chartBounds.top + 15);
-    await marketPage.mouse.down();
-    await marketPage.mouse.move(
-      chartBounds.left + chartBounds.width - 15,
-      chartBounds.top + chartBounds.height - 15,
-      { steps: 12 },
-    );
-    await marketPage.mouse.up();
-    await sidePanel.waitFor(
-      `(() => {
-        const trace = globalThis.__klaE2EAnalysisTraces.at(-1);
-        const summary = document.querySelector('[data-testid="selection-summary"]');
-        const error = document.querySelector('.error-block')?.textContent ?? '';
-        return Number(summary?.getAttribute('data-detected-candles') ?? 0) >= 12 &&
-          trace?.response?.error?.code === 'E_SELECTION_PERIOD_UNSUPPORTED' &&
-          error.includes('120m');
-      })()`,
-      '同花顺 120 分图像可识别并明确提示周期不支持',
-    );
-    await sidePanel.screenshot(resultPath('selection-120m-unsupported'));
-  }
-
-  if (profileName === 'binance') {
-    const response = await fetch(
-      'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=30m&limit=300',
-    );
-    if (!response.ok) throw new Error(`无法准备 30m 框选 E2E 行情：HTTP ${response.status}`);
-    const fixtureRows = await response.json();
-    const chartBounds = await marketPage.evaluate((rows) => {
-      const selected = rows.slice(160, 220);
-      const canvas = document.createElement('canvas');
-      canvas.dataset.klaE2eSelectionChart = 'true';
-      canvas.width = 900;
-      canvas.height = 420;
-      Object.assign(canvas.style, {
-        position: 'fixed',
-        left: '80px',
-        top: '110px',
-        width: '900px',
-        height: '420px',
-        zIndex: '2147483000',
-        border: '1px solid #33414b',
-        background: '#101820',
-      });
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('无法创建 30m 框选 E2E Canvas');
-      context.fillStyle = '#101820';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      const lows = selected.map((row) => Number(row[3]));
-      const highs = selected.map((row) => Number(row[2]));
-      const low = Math.min(...lows);
-      const high = Math.max(...highs);
-      const toY = (price) => 35 + ((high - price) / Math.max(high - low, 1)) * 225;
-      const step = 840 / selected.length;
-      const volumeMax = Math.max(...selected.map((row) => Number(row[5])));
-      selected.forEach((row, index) => {
-        const open = Number(row[1]);
-        const candleHigh = Number(row[2]);
-        const candleLow = Number(row[3]);
-        const close = Number(row[4]);
-        const color = close >= open ? '#0ECB81' : '#F6465D';
-        const x = 30 + index * step + step / 2;
-        context.strokeStyle = color;
-        context.fillStyle = color;
-        context.lineWidth = 2;
-        context.beginPath();
-        context.moveTo(x, toY(candleHigh));
-        context.lineTo(x, toY(candleLow));
-        context.stroke();
-        const bodyTop = Math.min(toY(open), toY(close));
-        const bodyHeight = Math.max(3, Math.abs(toY(open) - toY(close)));
-        context.fillRect(x - 4, bodyTop, 8, bodyHeight);
-        const volumeHeight = (Number(row[5]) / Math.max(volumeMax, 1)) * 92;
-        context.fillRect(x - 4, 395 - volumeHeight, 8, volumeHeight);
-      });
-      context.strokeStyle = '#33414b';
-      context.lineWidth = 1;
-      context.beginPath();
-      context.moveTo(20, 285);
-      context.lineTo(880, 285);
-      context.stroke();
-      const drawOverlay = (color, yAt) => {
-        context.strokeStyle = color;
-        context.lineWidth = 2;
-        context.beginPath();
-        for (let x = 20; x <= 880; x += 2) {
-          const y = yAt(x);
-          if (x === 20) context.moveTo(x, y);
-          else context.lineTo(x, y);
-        }
-        context.stroke();
-      };
-      // 使用真实行情图常见的红绿连续均线复现“整段被合并为 1 根”的历史回归。
-      drawOverlay('#F6465D', (x) => 175 + Math.sin(x / 95) * 14);
-      drawOverlay('#0ECB81', (x) => 365 + Math.sin(x / 70) * 5);
-      drawOverlay('#B07CFF', (x) => 115 + x / 14);
-      const period = document.createElement('button');
-      period.textContent = '30m';
-      Object.assign(period.style, {
-        position: 'fixed',
-        left: '80px',
-        top: '70px',
-        zIndex: '2147483001',
-        fontWeight: '700',
-        color: '#f5f7fa',
-      });
-      document.documentElement.append(canvas, period);
-      window.postMessage(
-        {
-          channel: 'KLA_MARKET_RESPONSE',
-          payload: {
-            id: 'kla-e2e-binance-30m',
-            siteId: 'binance',
-            symbol: 'BTCUSDT',
-            period: '30m',
-            pageUrl: location.href,
-            url: 'wss://stream.binance.com/ws/btcusdt@kline_30m',
-            method: 'WS',
-            status: 101,
-            requestAt: Date.now() - 1000,
-            responseAt: Date.now() + 60_000,
-            source: 'websocket',
-            raw: rows,
-            confidence: 100,
-          },
-        },
-        location.origin,
-      );
-      const rect = canvas.getBoundingClientRect();
-      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-    }, fixtureRows);
-    await marketPage.waitForTimeout(300);
-    // 本 E2E 直接打开 popup.html，未经过 Chrome 工具栏动作，因此不会获得 activeTab
-    // 的临时截图授权。注入同一活动页的真实视口截图，只替代权限入口，后续裁剪、
-    // 像素识别、消息同步仍完整运行生产代码。
-    const viewportImage = `data:image/png;base64,${(
-      await marketPage.screenshot({ type: 'png' })
-    ).toString('base64')}`;
-    await serviceWorker.evaluate((dataUrl) => {
-      chrome.tabs.captureVisibleTab = async () => dataUrl;
-    }, viewportImage);
-    await sidePanel.evaluate(`(() => {
-      const button = document.querySelector('[data-testid="select-candles"]');
-      if (!(button instanceof HTMLButtonElement) || button.disabled)
-        throw new Error('框选 K 线按钮不可用');
-      button.click();
-      return true;
-    })()`);
-    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', { timeout: 5_000 });
-    const recoveryTrace = await sidePanel.evaluate(`globalThis.__klaE2EContentRecovery`);
-    if (
-      recoveryTrace?.forcedFailures !== 1 ||
-      recoveryTrace?.injections?.length !== 2 ||
-      recoveryTrace.injections[0]?.world !== 'MAIN' ||
-      recoveryTrace.injections[0]?.files?.[0] !== 'inject.js' ||
-      recoveryTrace.injections[1]?.world !== 'ISOLATED' ||
-      recoveryTrace.injections[1]?.files?.[0] !== 'content.js'
-    )
-      throw new Error(`Content Script 自恢复链路不完整：${JSON.stringify(recoveryTrace)}`);
-    const recoveryError = await sidePanel.evaluate(
-      `document.querySelector('.error')?.textContent ?? ''`,
-    );
-    if (recoveryError.includes('Receiving end does not exist'))
-      throw new Error('Content Script 自恢复后仍向用户显示原始连接错误');
-    await marketPage.screenshot({
-      path: resultPath('selection-recovered-overlay'),
-      type: 'png',
-    });
-    await sidePanel.evaluate(`document.querySelector('[data-testid="reset-analyzer"]')?.click()`);
-    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', {
-      state: 'detached',
-      timeout: 5_000,
-    });
-    await sidePanel.waitFor(
-      `Boolean(document.querySelector('[data-testid="analysis-empty"]')) &&
-        !document.querySelector('[data-testid="selection-summary"]')`,
-      '重置可靠关闭尚未完成的框选遮罩',
-    );
-    await sidePanel.evaluate(`document.querySelector('[data-testid="select-candles"]')?.click()`);
-    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', { timeout: 5_000 });
-    const startX = chartBounds.left + 20;
-    const endX = chartBounds.left + chartBounds.width - 20;
-    const startY = chartBounds.top + 10;
-    const endY = chartBounds.top + chartBounds.height - 30;
-    await blockActiveMarketRequests(serviceWorker);
-    await marketPage.mouse.move(startX, startY);
-    await marketPage.mouse.down();
-    await marketPage.mouse.move(endX, endY, { steps: 12 });
-    await marketPage.mouse.up();
-    await sidePanel.waitFor(
-      `(() => {
-        const summary = document.querySelector('[data-testid="selection-summary"]');
-        const image = summary?.querySelector('img');
-        return Number(summary?.getAttribute('data-detected-candles') ?? 0) >= 5 &&
-          image instanceof HTMLImageElement && image.src.startsWith('data:image/png;base64,') &&
-          Boolean(document.querySelector('[data-testid="analysis-loading"]'));
-      })()`,
-      '本地截取图像并自动进入框选分析',
-    );
-    await sidePanel.screenshot(resultPath('selection-recognized'));
-    await sidePanel.waitFor(
-      `(() => {
-        const loading = document.querySelector('[data-testid="analysis-loading"]');
-        const selection = document.querySelector('[data-testid="selection-summary"]');
-        return loading?.getAttribute('aria-busy') === 'true' &&
-          Boolean(document.querySelector('[data-testid="cancel-analysis"]')) &&
-          Boolean(selection) && !document.querySelector('.market-chart') &&
-          !document.querySelector('.signal');
-      })()`,
-      '框选分析 Loading 界面',
-    );
-    await sidePanel.screenshot(resultPath('selection-loading'));
-    await sidePanel.evaluate(`document.querySelector('[data-testid="cancel-analysis"]')?.click()`);
-    await sidePanel.waitFor(
-      `(() => {
-        const control = globalThis.__klaE2EControlTraces.at(-1);
-        return !document.querySelector('[data-testid="analysis-loading"]') &&
-          !document.querySelector('[data-testid="selection-summary"]') &&
-          Boolean(document.querySelector('[data-testid="analysis-empty"]')) &&
-          !document.querySelector('.market-chart') && !document.querySelector('.signal') &&
-          !document.querySelector('.error') &&
-          control?.message?.type === 'CANCEL_ANALYSIS' && control.response?.ok === true;
-      })()`,
-      '取消框选分析并清理选区状态',
-    );
-    await waitForAbortedMarketRequest(serviceWorker, '取消框选分析');
-    await sidePanel.waitFor(
-      `globalThis.__klaE2EAnalysisTraces.at(-1)?.response?.error?.code === 'E_ANALYSIS_CANCELLED'`,
-      '后台确认框选分析已取消',
-    );
-    await sidePanel.screenshot(resultPath('selection-cancelled'));
-    const cancelledState = await sidePanel.evaluate(`(async () => {
-      const traceCount = globalThis.__klaE2EAnalysisTraces.length;
-      const response = await chrome.runtime.sendMessage({
-        id: crypto.randomUUID(),
-        traceId: crypto.randomUUID(),
-        type: 'GET_STATE',
-        source: 'drawer',
-        tabId: ${marketTabId},
-        payload: { url: ${JSON.stringify(profile.url)}, title: '' },
-        timestamp: Date.now()
-      });
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return {
-        selection: response?.data?.selection,
-        traceCount,
-        nextTraceCount: globalThis.__klaE2EAnalysisTraces.length
-      };
-    })()`);
-    if (cancelledState?.selection || cancelledState?.traceCount !== cancelledState?.nextTraceCount)
-      throw new Error(`取消后的框选状态复活或自动重跑：${JSON.stringify(cancelledState)}`);
-    await restoreActiveMarketRequests(serviceWorker);
-    await sidePanel.evaluate(`(() => {
-      const button = document.querySelector('[data-testid="select-candles"]');
-      if (!(button instanceof HTMLButtonElement) || button.disabled)
-        throw new Error('取消后无法重新框选');
-      button.click();
-      return true;
-    })()`);
-    await marketPage.waitForSelector('[data-kla-selection-overlay="true"]', { timeout: 5_000 });
-    await marketPage.mouse.move(startX, startY);
-    await marketPage.mouse.down();
-    await marketPage.mouse.move(endX, endY, { steps: 12 });
-    await marketPage.mouse.up();
-    await sidePanel.waitFor(
-      `(() => {
-        const trace = globalThis.__klaE2EAnalysisTraces.at(-1);
-        const interpretation = trace?.response?.data?.selection?.interpretation;
-        const marketData = trace?.response?.data?.marketData;
-        return trace?.response?.ok === true &&
-          trace.response.data.context?.mode === 'selection' &&
-          interpretation?.period === '30m' &&
-          interpretation.candleCount >= 20 &&
-          interpretation.startTime < interpretation.endTime &&
-          marketData?.period === '30m' &&
-          marketData.candles?.length === interpretation.candleCount &&
-          Boolean(document.querySelector('[data-testid="analysis-action"]')) &&
-          document.querySelector('[data-testid="selection-summary"]')?.textContent?.includes('30');
-      })()`,
-      '30m 框选日期、区间行情与分析结果闭环',
-    );
-    await sidePanel.screenshot(resultPath('selection-analysis'));
-
-    await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
-    await sidePanel.waitFor(
-      `Boolean(document.querySelector('[data-testid="config-dialog"]'))`,
-      '框选后首次手工分析仍需确认参数',
-    );
-    await sidePanel.evaluate(`(() => {
-      const remember = document.querySelector('[data-testid="config-dialog"] input[type="checkbox"]');
-      if (remember instanceof HTMLInputElement && !remember.checked) remember.click();
-      document.querySelector('[data-testid="confirm-config"]')?.click();
-    })()`);
-    await sidePanel.waitFor(
-      `(() => {
-        const trace = globalThis.__klaE2EAnalysisTraces.at(-1);
-        return trace?.response?.ok === true &&
-          trace.response.data.context?.mode === 'configured-request' &&
-          !document.querySelector('[data-testid="selection-summary"]') &&
-          Boolean(document.querySelector('[data-testid="analysis-window"]'));
-      })()`,
-      '手工分析替换框选状态和结果',
-    );
-    await sidePanel.screenshot(resultPath('manual-replaces-selection'));
-  }
+  // Selection is disabled in this release; negative coverage runs before analysis.
+  await sidePanel.waitFor(
+    `!document.querySelector('[data-testid="config-dialog"]')`,
+    '保存有效根数完成',
+  );
 
   await sidePanel.evaluate(`document.querySelector('[data-testid="open-config"]')?.click()`);
   await sidePanel.waitFor(
@@ -1158,9 +917,13 @@ try {
     remember.click();
     document.querySelector('[data-testid="confirm-config"]')?.click();
     globalThis.__klaE2ETraceCountBeforePromptRestore = globalThis.__klaE2EAnalysisTraces.length;
-    document.querySelector('[data-testid="run-analysis"]')?.click();
     return true;
   })()`);
+  await sidePanel.waitFor(
+    `!document.querySelector('[data-testid="config-dialog"]')`,
+    '取消记住配置完成',
+  );
+  await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]')?.click()`);
   await sidePanel.waitFor(
     `Boolean(document.querySelector('[data-testid="config-dialog"]')) &&
       globalThis.__klaE2EAnalysisTraces.length === globalThis.__klaE2ETraceCountBeforePromptRestore`,
@@ -1187,6 +950,64 @@ try {
     '重置分析台',
   );
   await sidePanel.screenshot(resultPath('reset'));
+
+  // 保存请求未完成时不重复提交；即使切换标签页，迟到保存也不能触发新标的分析。
+  await sidePanel.evaluate(`document.querySelector('[data-testid="run-analysis"]').click()`);
+  await sidePanel.waitFor(
+    `Boolean(document.querySelector('[data-testid="config-dialog"]'))`,
+    '切页前打开分析配置',
+  );
+  await sidePanel.evaluate(`(() => {
+    globalThis.__klaE2ETraceCountBeforeSave = globalThis.__klaE2EAnalysisTraces.length;
+    globalThis.__klaE2ESaveCalls = 0;
+    const originalSet = chrome.storage.local.set.bind(chrome.storage.local);
+    chrome.storage.local.set = async (...args) => {
+      globalThis.__klaE2ESaveCalls += 1;
+      await new Promise(resolve => { globalThis.__klaE2EReleaseSave = resolve; });
+      chrome.storage.local.set = originalSet;
+      return originalSet(...args);
+    };
+    const confirm = document.querySelector('[data-testid="confirm-config"]');
+    confirm.click(); confirm.click();
+  })()`);
+  await sidePanel.waitFor(
+    `document.querySelector('[data-testid="config-dialog"]')?.getAttribute('aria-busy') === 'true' &&
+      document.querySelector('[data-testid="confirm-config"]').disabled &&
+      globalThis.__klaE2ESaveCalls === 1`,
+    '保存中提供反馈并阻止重复提交',
+  );
+  await pressKey('Escape', 27);
+  if (
+    !(await sidePanel.evaluate(`Boolean(document.querySelector('[data-testid="config-dialog"]'))`))
+  )
+    throw new Error('保存过程中意外关闭弹窗');
+  const otherPage = await context.newPage();
+  await otherPage.goto('about:blank');
+  await otherPage.bringToFront();
+  await sidePanel.waitFor(
+    `document.querySelector('[data-testid="market-status"]')?.getAttribute('data-site') === 'unsupported' &&
+      !document.querySelector('[data-testid="config-dialog"]') &&
+      document.querySelector('[data-testid="run-analysis"]').disabled &&
+      !document.querySelector('.market-chart') && !document.getElementById('root').inert`,
+    '切换到不支持页面关闭旧弹窗并清理结果',
+  );
+  await sidePanel.evaluate(`globalThis.__klaE2EReleaseSave()`);
+  await delay(250);
+  if (
+    !(await sidePanel.evaluate(
+      `globalThis.__klaE2EAnalysisTraces.length === globalThis.__klaE2ETraceCountBeforeSave`,
+    ))
+  )
+    throw new Error('旧弹窗保存完成后意外触发了新标签页分析');
+  await marketPage.bringToFront();
+  await otherPage.close();
+  await sidePanel.waitFor(
+    `document.querySelector('[data-testid="market-status"]')?.getAttribute('data-site') === ${JSON.stringify(profileName)} &&
+      !document.querySelector('[data-testid="run-analysis"]').disabled &&
+      !document.querySelector('[data-testid="config-dialog"]')`,
+    '切回行情页后可正常开始分析',
+  );
+  await sidePanel.screenshot(resultPath('tab-switch-recovered'));
   console.log(`${profile.label} real Side Panel E2E passed: ${profile.url}`);
 } catch (error) {
   if (sidePanel) await sidePanel.screenshot(resultPath('e2e-failure')).catch(() => undefined);

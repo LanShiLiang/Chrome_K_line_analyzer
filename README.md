@@ -2,7 +2,7 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-A Chrome Manifest V3 extension that turns an explicitly selected chart range—or the current supported market context—into local candlestick, volume-price, and Wyckoff analysis. It identifies the selected period and dates, requests the matching public OHLCV window, and presents explainable stages, signals, confidence, key levels, and risk warnings in the Chrome Side Panel.
+A Chrome Manifest V3 extension for local candlestick, volume-price, and Wyckoff analysis on supported market pages. Choose a period and candle count to analyze the latest public OHLCV window, with explainable stages, signals, confidence, key levels, and risk warnings in the Chrome Side Panel.
 
 ## Recommended Usage
 
@@ -11,7 +11,7 @@ Use the extension primarily on Binance and Tonghuashun market pages:
 - **Binance example:** [BTC/USDT Spot](https://www.binance.com/en/trade/BTC_USDT?type=spot), for crypto candlestick and volume analysis.
 - **Tonghuashun example:** [Kweichow Moutai 600519](https://stockpage.10jqka.com.cn/600519/), for mainland China A-share analysis with red-up and green-down market colors.
 
-Open and refresh a supported market page, click the K Line Analyzer toolbar icon, choose **Open Side Panel**, frame the candlesticks you want to inspect, and then select **Start Analysis**. The extension locally reads the selected chart image, matches its period and dates, requests the corresponding public market data, and generates the result and chart locally.
+Open and refresh a supported market page, click the K Line Analyzer toolbar icon, choose **Open Side Panel**, and select **Start Analysis**. Confirm the period and candle count to request public market data and generate the result and chart locally. Chart selection is temporarily disabled in v0.1.4.
 
 TradingView remains a compatibility path. It only analyzes market data already streamed by the current page and passively captured by the extension. Availability depends on the current chart data; Binance or Tonghuashun is recommended for normal use.
 
@@ -29,7 +29,7 @@ TradingView remains a compatibility path. It only analyzes market data already s
 - Buy, sell, hold, and risk signals with reason codes and confidence.
 - Lightweight Charts candlestick and volume rendering.
 - 30-minute, 1-hour, 4-hour, daily, weekly, and monthly periods with a configurable 5–1000-candle window; an empty or invalid draft is preserved and explained before any request is sent.
-- Local selected-image recognition that identifies the chart period, matches candle colors to exact market dates, and uses the same selected range for analysis and charting without uploading screenshots.
+- A visible next-analysis configuration summary and keyboard-accessible settings; failed saves preserve your draft for retry.
 - One `analysisCandleCount` snapshot drives both analysis and chart rendering.
 - User settings remain in `chrome.storage.local`.
 

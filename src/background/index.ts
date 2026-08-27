@@ -24,6 +24,7 @@ import { createSession, resolveSessionTabId, updateSessionPage, type Session } f
 import { captureSelectionImage, SelectionCaptureError } from './selection-capture';
 import { AnalysisTaskRegistry } from './analysis-tasks';
 import { awaitWithSignal, isAbortError, throwIfAborted } from '../shared/cancellation';
+import { SELECTION_ENABLED } from '../shared/features';
 
 // Service Worker 按标签页维护临时会话，并统一执行标准化与策略分析。
 const sessions = new Map<number, Session>();
@@ -48,13 +49,30 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
     });
     return;
   }
+  // 拒绝旧页面残留的选区消息，不取消正在进行的普通分析，也不截取页面。
+  if (
+    !SELECTION_ENABLED &&
+    (message.type === 'SELECTION_DONE' ||
+      (message.type === 'RUN_ANALYSIS' &&
+        (message.payload as { mode?: AnalysisRunMode } | undefined)?.mode === 'selection'))
+  ) {
+    sendResponse({
+      ok: false,
+      error: {
+        code: 'E_SELECTION_DISABLED',
+        message: localizedMessage('error_selection_disabled'),
+        recoverable: true,
+      },
+    });
+    return;
+  }
   const current = session(tabId);
   if (message.type === 'PAGE_DETECTED') {
     const revision = current.revision;
     updateSessionPage(current, message.payload as Session['page']);
     if (current.revision !== revision) analysisTasks.cancel(tabId);
   }
-  if (message.type === 'SELECTION_DONE') {
+  if (SELECTION_ENABLED && message.type === 'SELECTION_DONE') {
     analysisTasks.cancel(tabId);
     current.revision += 1;
     const receivedSelection = message.payload as SelectionRange;
@@ -248,7 +266,7 @@ async function runAnalysis(
     const revision = current.revision;
     const site = detectMarketSite(pageUrl);
     const storedConfig = resolveUserConfigForSite(site, mergeUserConfig(requested.config));
-    const mode = requested.mode ?? 'manual';
+    const mode = SELECTION_ENABLED ? (requested.mode ?? 'manual') : 'manual';
     const selection = mode === 'selection' ? current.selection : undefined;
     if (
       mode === 'selection' &&

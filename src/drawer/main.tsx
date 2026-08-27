@@ -50,6 +50,7 @@ import {
 } from './store';
 import { getMarketColorTheme } from './market-colors';
 import { sendToContentWithRecovery } from './content-connection';
+import { SELECTION_ENABLED } from '../shared/features';
 import {
   ACTION_MESSAGE_KEYS,
   EVIDENCE_MESSAGE_KEYS,
@@ -131,6 +132,9 @@ function App() {
   const [configDraft, setConfigDraft] = useState<UserConfig>({ ...DEFAULT_CONFIG });
   const [rememberConfig, setRememberConfig] = useState(false);
   const [rememberDraft, setRememberDraft] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configSaveError, setConfigSaveError] = useState<string>();
+  const configSavingRef = useRef(false);
   const rememberConfigRef = useRef(false);
   const analysisSequence = useRef(0);
   const syncSequence = useRef(0);
@@ -208,13 +212,15 @@ function App() {
         activeTabId: context.tabId,
         page,
         candidates,
-        selection: response.data?.selection,
+        selection: SELECTION_ENABLED ? response.data?.selection : undefined,
         config,
         syncing: false,
         error: undefined,
         errorGuidance: undefined,
       });
-      const selection = response.data?.selection as SelectionRange | undefined;
+      const selection = SELECTION_ENABLED
+        ? (response.data?.selection as SelectionRange | undefined)
+        : undefined;
       if (
         selection?.recognitionStatus === 'ready' &&
         selection.image &&
@@ -392,6 +398,7 @@ function App() {
       const messageTabId = sender.tab?.id ?? m.tabId;
       if (messageTabId === undefined || messageTabId !== current.activeTabId) return;
       if (m.type === 'SELECTION_UPDATED') {
+        if (!SELECTION_ENABLED) return;
         const selection = m.payload as SelectionRange;
         if (
           current.selection &&
@@ -416,6 +423,7 @@ function App() {
       if (m.type === 'PAGE_DETECTED') {
         const page = m.payload as ActiveTabContext['page'];
         if (!page?.url) return;
+        setConfigDialog(undefined);
         analysisSequence.current += 1;
         current.set(resetTabScopedState(messageTabId, page));
         void syncActiveTab(messageTabId);
@@ -428,6 +436,7 @@ function App() {
     };
     const activatedListener = (activeInfo: { tabId: number; windowId: number }) => {
       if (windowId.current !== undefined && activeInfo.windowId !== windowId.current) return;
+      setConfigDialog(undefined);
       const current = useDrawerStore.getState();
       void cancelPageSelection(current.activeTabId);
       autoSelectionRuns.current.clear();
@@ -443,6 +452,7 @@ function App() {
     ) => {
       const current = useDrawerStore.getState();
       if (tabId !== current.activeTabId || changeInfo.url === undefined) return;
+      setConfigDialog(undefined);
       void cancelPageSelection(tabId);
       autoSelectionRuns.current.clear();
       if (current.busy) cancelBackgroundAnalysis(tabId);
@@ -461,6 +471,7 @@ function App() {
   }, [syncActiveTab]);
 
   const select = async () => {
+    if (!SELECTION_ENABLED) return;
     try {
       const { tabId } = await getActiveTabContext();
       await sendToContentWithRecovery(tabId, createMessage('START_SELECTION', 'drawer'));
@@ -480,10 +491,17 @@ function App() {
     config = useDrawerStore.getState().config,
     mode: AnalysisRunMode = 'manual',
     selectionCapturedAt?: number,
+    expectedContext?: ActiveTabContext,
   ) => {
     let requestSequence = ++analysisSequence.current;
     try {
       const { tabId, page: observedPage } = await getActiveTabContext();
+      // 保存参数期间切换了标的，不把旧弹窗的确认操作应用到新页面。
+      if (
+        expectedContext &&
+        (expectedContext.tabId !== tabId || hasConflictingPage(expectedContext.page, observedPage))
+      )
+        return;
       let current = useDrawerStore.getState();
       if (!isSameTabContext(current, tabId, observedPage)) {
         await syncActiveTab(tabId);
@@ -574,28 +592,50 @@ function App() {
       analyze(useDrawerStore.getState().config, mode, selectionCapturedAt);
   });
   const openConfigDialog = (intent: 'analyze' | 'edit') => {
+    if (configSavingRef.current) return;
+    setConfigSaveError(undefined);
     setConfigDraft({ ...s.config });
     setRememberDraft(rememberConfig);
     setConfigDialog(intent);
   };
+  const closeConfigDialog = useCallback(() => {
+    if (!configSavingRef.current) setConfigDialog(undefined);
+  }, []);
   const confirmConfig = async () => {
     const intent = configDialog;
-    if (!intent) return;
+    if (!intent || configSavingRef.current) return;
     const nextConfig = isTradingView ? { ...DEFAULT_CONFIG } : configDraft;
     if (!isTradingView && getAnalysisConfigError(nextConfig)) return;
-    s.set({ config: nextConfig, configError: undefined });
-    setRememberConfig(rememberDraft);
-    rememberConfigRef.current = rememberDraft;
-    setConfigDialog(undefined);
-    if (extensionReady()) {
-      const stored = rememberDraft
-        ? { 'kla:userConfig': nextConfig, [CONFIG_PROMPT_PREFERENCE_KEY]: true }
-        : { [CONFIG_PROMPT_PREFERENCE_KEY]: false };
-      await chrome.storage.local.set(stored);
+    const originalContext = useDrawerStore.getState();
+    configSavingRef.current = true;
+    setConfigSaving(true);
+    setConfigSaveError(undefined);
+    try {
+      if (extensionReady()) {
+        const stored = rememberDraft
+          ? { 'kla:userConfig': nextConfig, [CONFIG_PROMPT_PREFERENCE_KEY]: true }
+          : { [CONFIG_PROMPT_PREFERENCE_KEY]: false };
+        await chrome.storage.local.set(stored);
+      }
+      s.set({ config: nextConfig, configError: undefined });
+      setRememberConfig(rememberDraft);
+      rememberConfigRef.current = rememberDraft;
+      setConfigDialog(undefined);
+    } catch {
+      setConfigSaveError(t('error_save_config'));
+      return;
+    } finally {
+      configSavingRef.current = false;
+      setConfigSaving(false);
     }
-    if (intent === 'analyze') await analyze(nextConfig, 'manual');
+    if (intent === 'analyze' && originalContext.activeTabId !== undefined)
+      await analyze(nextConfig, 'manual', undefined, {
+        tabId: originalContext.activeTabId,
+        page: originalContext.page,
+      });
   };
   const startManualAnalysis = () => {
+    if (configSavingRef.current || useDrawerStore.getState().busy) return;
     if (rememberConfigRef.current) void analyze(useDrawerStore.getState().config, 'manual');
     else openConfigDialog('analyze');
   };
@@ -620,7 +660,7 @@ function App() {
             className="icon"
             data-testid="reset-analyzer"
             type="button"
-            disabled={s.syncing}
+            disabled={s.syncing || configSaving}
             title={t('drawer_reset_analyzer')}
             aria-label={t('drawer_reset_analyzer')}
             onClick={() => void resetAnalyzer()}
@@ -657,14 +697,16 @@ function App() {
       </section>
       <p className="privacy-note">{t('drawer_privacy')}</p>
       <div className="actions">
-        <button
-          data-testid="select-candles"
-          disabled={s.syncing || s.busy}
-          onClick={() => void select()}
-        >
-          <MousePointer2 />
-          {t('drawer_select_candles')}
-        </button>
+        {SELECTION_ENABLED && (
+          <button
+            data-testid="select-candles"
+            disabled={s.syncing || s.busy}
+            onClick={() => void select()}
+          >
+            <MousePointer2 />
+            {t('drawer_select_candles')}
+          </button>
+        )}
         <div className="analysis-action-group">
           <button
             className="primary analysis-start"
@@ -688,6 +730,14 @@ function App() {
           </button>
         </div>
       </div>
+      <p className="analysis-config-summary" data-testid="analysis-config-summary" role="status">
+        {isTradingView
+          ? t('drawer_follow_current_chart')
+          : t('drawer_config_summary', [
+              t(PERIOD_MESSAGE_KEYS[s.config.analysisPeriod]),
+              s.config.analysisCandleCount,
+            ])}
+      </p>
       {configDialog &&
         createPortal(
           <ConfigDialog
@@ -695,9 +745,12 @@ function App() {
             capturedCandles={capturedCandleCount(s.candidates)}
             config={configDraft}
             remember={rememberDraft}
+            intent={configDialog}
+            saving={configSaving}
+            saveError={configSaveError}
             onConfigChange={setConfigDraft}
             onRememberChange={setRememberDraft}
-            onClose={() => setConfigDialog(undefined)}
+            onClose={closeConfigDialog}
             onConfirm={() => void confirmConfig()}
           />,
           document.body,
@@ -944,6 +997,9 @@ function ConfigDialog({
   capturedCandles,
   config,
   remember,
+  intent,
+  saving,
+  saveError,
   onConfigChange,
   onRememberChange,
   onClose,
@@ -953,140 +1009,209 @@ function ConfigDialog({
   capturedCandles: number;
   config: UserConfig;
   remember: boolean;
+  intent: 'analyze' | 'edit';
+  saving: boolean;
+  saveError?: string;
   onConfigChange: (config: UserConfig) => void;
   onRememberChange: (remember: boolean) => void;
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
   const disabled = site === 'tradingview';
   const configError = disabled ? undefined : getAnalysisConfigError(config);
   const update = (key: keyof UserConfig, value: UserConfig[keyof UserConfig]) => {
     onConfigChange({ ...config, [key]: value });
   };
   useEffect(() => {
+    const opener = document.activeElement;
+    const root = document.getElementById('root');
+    const wasInert = root?.inert ?? false;
+    if (root) root.inert = true;
     document.body.classList.add('config-modal-open');
+    (
+      dialogRef.current?.querySelector<HTMLElement>('select, input') ??
+      dialogRef.current?.querySelector<HTMLElement>('button')
+    )?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+      if (event.key === 'Tab') {
+        const controls = Array.from(
+          dialogRef.current?.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), input:not(:disabled), select:not(:disabled)',
+          ) ?? [],
+        );
+        const first = controls[0];
+        const last = controls.at(-1);
+        if (!first) {
+          event.preventDefault();
+          dialogRef.current?.focus();
+        } else if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => {
       document.body.classList.remove('config-modal-open');
+      if (root) root.inert = wasInert;
       window.removeEventListener('keydown', onKeyDown);
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
     };
   }, [onClose]);
+  useEffect(() => {
+    if (saveError) dialogRef.current?.querySelector<HTMLElement>('[type="submit"]')?.focus();
+  }, [saveError]);
   return (
     <div className="config-dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section
         className="config-dialog"
+        ref={dialogRef}
+        tabIndex={-1}
         data-testid="config-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="config-dialog-title"
+        aria-busy={saving}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="config-dialog-header">
-          <h2 id="config-dialog-title">{t('drawer_config_dialog_title')}</h2>
-          <button
-            className="icon"
-            type="button"
-            aria-label={t('drawer_close_config')}
-            title={t('drawer_close_config')}
-            onClick={onClose}
-          >
-            <X />
-          </button>
-        </div>
-        <div className={`config-body${disabled ? ' is-disabled' : ''}`}>
-          {disabled ? (
-            <>
-              <p className="config-context-note">{t('drawer_settings_locked_tradingview')}</p>
-              <div className="chart-context-settings" aria-label={t('drawer_tradingview_rules')}>
-                <div>
-                  <span>{t('drawer_market_period')}</span>
-                  <strong>{t('drawer_follow_current_chart')}</strong>
+        <form
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            onConfirm();
+          }}
+        >
+          <div className="config-dialog-header">
+            <h2 id="config-dialog-title">{t('drawer_config_dialog_title')}</h2>
+            <button
+              className="icon"
+              type="button"
+              disabled={saving}
+              aria-label={t('drawer_close_config')}
+              title={t('drawer_close_config')}
+              onClick={onClose}
+            >
+              <X />
+            </button>
+          </div>
+          <div className={`config-body${disabled ? ' is-disabled' : ''}`}>
+            {disabled ? (
+              <>
+                <p className="config-context-note">{t('drawer_settings_locked_tradingview')}</p>
+                <div className="chart-context-settings" aria-label={t('drawer_tradingview_rules')}>
+                  <div>
+                    <span>{t('drawer_market_period')}</span>
+                    <strong>{t('drawer_follow_current_chart')}</strong>
+                  </div>
+                  <div>
+                    <span>{t('drawer_analysis_candle_count')}</span>
+                    <strong>
+                      {capturedCandles
+                        ? t('drawer_captured_candles', [
+                            Math.min(capturedCandles, MAX_ANALYSIS_CANDLES),
+                          ])
+                        : t('drawer_waiting_chart_data')}
+                    </strong>
+                  </div>
                 </div>
-                <div>
-                  <span>{t('drawer_analysis_candle_count')}</span>
-                  <strong>
-                    {capturedCandles
-                      ? t('drawer_captured_candles', [
-                          Math.min(capturedCandles, MAX_ANALYSIS_CANDLES),
-                        ])
-                      : t('drawer_waiting_chart_data')}
-                  </strong>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <label>
-                {t('drawer_market_period')}
-                <select
-                  value={config.analysisPeriod}
-                  onChange={(event) =>
-                    update(
-                      'analysisPeriod',
-                      event.currentTarget.value as UserConfig['analysisPeriod'],
-                    )
-                  }
-                >
-                  <option value="30m">{t('period_30_minutes')}</option>
-                  <option value="1h">{t('period_hour')}</option>
-                  <option value="4h">{t('period_4_hours')}</option>
-                  <option value="1d">{t('period_day')}</option>
-                  <option value="1w">{t('period_week')}</option>
-                  <option value="1M">{t('period_month')}</option>
-                </select>
-              </label>
-              <label>
-                {t('drawer_analysis_candle_count')}
-                <input
-                  type="number"
-                  min={MIN_ANALYSIS_CANDLES}
-                  max={MAX_ANALYSIS_CANDLES}
-                  step={1}
-                  aria-invalid={Boolean(configError)}
-                  value={
-                    Number.isFinite(config.analysisCandleCount) ? config.analysisCandleCount : ''
-                  }
-                  onChange={(event) => {
-                    update(
-                      'analysisCandleCount',
-                      event.currentTarget.value === ''
-                        ? Number.NaN
-                        : event.currentTarget.valueAsNumber,
-                    );
-                  }}
-                />
-                {configError && (
-                  <span className="field-error" data-testid="config-validation">
-                    {translateMessage(configError)}
-                  </span>
-                )}
-              </label>
-            </>
+              </>
+            ) : (
+              <>
+                <label>
+                  {t('drawer_market_period')}
+                  <select
+                    disabled={saving}
+                    value={config.analysisPeriod}
+                    onChange={(event) =>
+                      update(
+                        'analysisPeriod',
+                        event.currentTarget.value as UserConfig['analysisPeriod'],
+                      )
+                    }
+                  >
+                    <option value="30m">{t('period_30_minutes')}</option>
+                    <option value="1h">{t('period_hour')}</option>
+                    <option value="4h">{t('period_4_hours')}</option>
+                    <option value="1d">{t('period_day')}</option>
+                    <option value="1w">{t('period_week')}</option>
+                    <option value="1M">{t('period_month')}</option>
+                  </select>
+                </label>
+                <label>
+                  {t('drawer_analysis_candle_count')}
+                  <input
+                    type="number"
+                    disabled={saving}
+                    min={MIN_ANALYSIS_CANDLES}
+                    max={MAX_ANALYSIS_CANDLES}
+                    step={1}
+                    aria-invalid={Boolean(configError)}
+                    aria-describedby={configError ? 'config-validation' : undefined}
+                    value={
+                      Number.isFinite(config.analysisCandleCount) ? config.analysisCandleCount : ''
+                    }
+                    onChange={(event) => {
+                      update(
+                        'analysisCandleCount',
+                        event.currentTarget.value === ''
+                          ? Number.NaN
+                          : event.currentTarget.valueAsNumber,
+                      );
+                    }}
+                  />
+                  {configError && (
+                    <span
+                      className="field-error"
+                      id="config-validation"
+                      data-testid="config-validation"
+                    >
+                      {translateMessage(configError)}
+                    </span>
+                  )}
+                </label>
+              </>
+            )}
+          </div>
+          <label className="remember-config">
+            <input
+              className="config-checkbox"
+              type="checkbox"
+              disabled={saving}
+              checked={remember}
+              onChange={(event) => onRememberChange(event.currentTarget.checked)}
+            />
+            <span>{t('drawer_remember_config')}</span>
+          </label>
+          {saveError && (
+            <p className="error" role="alert" data-testid="config-save-error">
+              {saveError}
+            </p>
           )}
-        </div>
-        <label className="remember-config">
-          <input
-            className="config-checkbox"
-            type="checkbox"
-            checked={remember}
-            onChange={(event) => onRememberChange(event.currentTarget.checked)}
-          />
-          <span>{t('drawer_remember_config')}</span>
-        </label>
-        <div className="config-dialog-footer">
-          <button
-            className="primary"
-            data-testid="confirm-config"
-            type="button"
-            disabled={Boolean(configError)}
-            onClick={onConfirm}
-          >
-            {t('drawer_confirm_config')}
-          </button>
-        </div>
+          <div className="config-dialog-footer">
+            <button
+              className="primary"
+              data-testid="confirm-config"
+              type="submit"
+              disabled={saving || Boolean(configError)}
+            >
+              {t(
+                saving
+                  ? 'drawer_saving_config'
+                  : intent === 'edit'
+                    ? 'drawer_apply_config'
+                    : 'drawer_start_analysis',
+              )}
+            </button>
+          </div>
+        </form>
       </section>
     </div>
   );
