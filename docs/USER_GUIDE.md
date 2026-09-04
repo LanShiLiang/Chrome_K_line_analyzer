@@ -27,7 +27,7 @@ Refresh the market page after installing or reloading the extension.
 5. The extension fetches the latest configured market window. The loading view can safely cancel the operation.
 6. Review the strategy result, stage, confidence, evidence, and the final symbol, period, candle count, and start/end times shown under **Analysis Window**.
 
-Chart selection is temporarily disabled in v0.1.4; there is no selection overlay, screenshot capture, or automatic selection analysis. Use the settings button to change the configured window.
+Chart selection is temporarily disabled in v0.1.5; there is no selection overlay, screenshot capture, or automatic selection analysis. Use the settings button to change the configured window.
 
 Settings support Tab / Shift+Tab navigation, Escape to close, and Enter to submit. **Apply Settings** updates the next analysis without running it. A failed save keeps the dialog and your draft open for retry. Remembering the configuration saves both the period and candle count and skips this dialog on future runs.
 

@@ -22,7 +22,9 @@ This document is the English-default source for the Chrome Web Store Developer D
 
 > K Line Analyzer is a focused Chrome Side Panel extension for market research.
 >
-> Open a supported Binance or Tonghuashun market page, choose a period and candle count, and analyze the latest public OHLCV window. The result and chart use the same data snapshot. TradingView remains available as a passive current-chart compatibility path. Chart selection is temporarily disabled in v0.1.4.
+> Open a supported Binance or Tonghuashun market page, choose a period and candle count, and analyze the latest public OHLCV window. The result and chart use the same data snapshot. TradingView remains available as a passive current-chart compatibility path. Chart selection is temporarily disabled in v0.1.5.
+>
+> What changed in v0.1.5: removed the unused scripting permission. Supported market pages use manifest-declared content scripts; refresh already-open market pages after updating the extension. Chart selection remains disabled.
 >
 > Core capabilities:
 >
@@ -41,7 +43,14 @@ This document is the English-default source for the Chrome Web Store Developer D
 > - Tonghuashun (recommended): requests public candlestick data for the current stock code from Tonghuashun's market-data endpoint. Example: https://stockpage.10jqka.com.cn/600519/
 > - TradingView (compatibility): read-only parses market data already streamed to the current page. Availability depends on the data present in the active chart.
 >
-> To use the extension, open and refresh a supported market page, click the K Line Analyzer toolbar icon, choose Open Side Panel, and start analysis with the configured period and candle count.
+> Quick start:
+>
+> 1. Open a supported Binance or Tonghuashun market page. Refresh pages that were open before installing or updating the extension.
+> 2. Click the K Line Analyzer toolbar icon and choose Open Side Panel.
+> 3. Open settings, choose a period and candle count, and apply your settings. Click Start Analysis when ready.
+> 4. Review the analysis window, evidence, candlesticks, and volume together. Applying settings does not automatically rerun analysis.
+>
+> Important limitations: chart selection and chart screenshots are disabled. TradingView is a passive compatibility path; its analysis settings are locked and data may be unavailable until the page streams supported candles. Public market-data services may be temporarily unavailable.
 >
 > The extension does not read cookies, authentication tokens, login credentials, trading accounts, positions, orders, or payment information. It contains no advertising, telemetry, or remote code. User settings remain in `chrome.storage.local`.
 >
@@ -51,17 +60,16 @@ Do not add unsubstantiated or misleading claims such as “AI stock oracle,” �
 
 ## Permissions
 
-| Permission or origin                | User-facing function                                                               | Why it is required                                                                |
-| ----------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `storage`                           | Saves the analysis period and candle count                                         | Uses only `chrome.storage.local`; synchronization is not enabled                  |
-| `activeTab`                         | Identifies the active supported tab                                                | Binds data to the current tab; no chart screenshots in v0.1.4                     |
-| `sidePanel`                         | Displays the analysis workbench beside the market page                             | The Side Panel is the primary extension interface                                 |
-| `scripting`                         | Restores the extension bridge on a supported page after an extension update        | Runs packaged `inject.js` and `content.js` only when the page receiver is missing |
-| `https://www.binance.com/*`         | Recognizes the current Binance market page and receives page context               | Runs only on explicitly supported Binance pages                                   |
-| `https://*.tradingview.com/*`       | Read-only observes market messages already streamed to the current chart           | The extension does not create an active TradingView market-data request           |
-| `https://stockpage.10jqka.com.cn/*` | Recognizes the current Tonghuashun stock page                                      | Runs only on explicitly supported Tonghuashun pages                               |
-| `https://data-api.binance.vision/*` | Requests public candles for the current Binance pair when the user starts analysis | Requests use `credentials: "omit"`                                                |
-| `https://d.10jqka.com.cn/*`         | Requests public candles for the current Tonghuashun stock code                     | Requests use `credentials: "omit"`                                                |
+| Permission or origin                | User-facing function                                                               | Why it is required                                                      |
+| ----------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `storage`                           | Saves the analysis period and candle count                                         | Uses only `chrome.storage.local`; synchronization is not enabled        |
+| `activeTab`                         | Identifies the active supported tab                                                | Binds data to the current tab; no chart screenshots in v0.1.5           |
+| `sidePanel`                         | Displays the analysis workbench beside the market page                             | The Side Panel is the primary extension interface                       |
+| `https://www.binance.com/*`         | Recognizes the current Binance market page and receives page context               | Runs only on explicitly supported Binance pages                         |
+| `https://*.tradingview.com/*`       | Read-only observes market messages already streamed to the current chart           | The extension does not create an active TradingView market-data request |
+| `https://stockpage.10jqka.com.cn/*` | Recognizes the current Tonghuashun stock page                                      | Runs only on explicitly supported Tonghuashun pages                     |
+| `https://data-api.binance.vision/*` | Requests public candles for the current Binance pair when the user starts analysis | Requests use `credentials: "omit"`                                      |
+| `https://d.10jqka.com.cn/*`         | Requests public candles for the current Tonghuashun stock code                     | Requests use `credentials: "omit"`                                      |
 
 The production Manifest does not contain `localhost`, `127.0.0.1`, `<all_urls>`, Cookie, History, Web Request, or remote-code permissions.
 
@@ -71,7 +79,7 @@ Dashboard labels can change. Complete the current fields using the following beh
 
 ### Data types to disclose
 
-1. **Website content:** public market symbol, OHLCV, and volume data from the supported page or market response, used only to generate the local analysis requested by the user. Chart screenshots are not captured in v0.1.4.
+1. **Website content:** public market symbol, OHLCV, and volume data from the supported page or market response, used only to generate the local analysis requested by the user. Chart screenshots are not captured in v0.1.5.
 2. **Web browsing activity:** the domain, URL, and title of the current supported page, used only to identify the site, symbol, and correct active tab. The extension does not read general browsing history and does not run on unsupported pages.
 3. **User settings**, if the Dashboard provides that category: analysis period and candle count, stored only in `chrome.storage.local`.
 
@@ -80,7 +88,7 @@ Do not select personally identifiable information, precise location, authenticat
 ### Data use
 
 - Data is used only for the disclosed single purpose of providing local market analysis on supported pages.
-- Market data, page context, and analysis results are not uploaded to a developer server; chart screenshots are not captured in v0.1.4.
+- Market data, page context, and analysis results are not uploaded to a developer server; chart screenshots are not captured in v0.1.5.
 - Data is not sold or used for advertising, credit assessment, user profiling, or unrelated analytics.
 - Developers cannot manually read a user's local market data, browsing context, settings, or results.
 - User settings remain in local Chrome storage until reset, extension data is cleared, or the extension is uninstalled.
@@ -110,6 +118,8 @@ Before submission, confirm in a signed-out browser that the URL is public and ma
 | Simplified Chinese (`zh_CN`) | `WEB_STORE_LISTING.zh-CN.md` | `store-assets/zh-CN/` |
 
 Use the global text-free small promotional tile at `store-assets/promo-small-440x280.png` for both locales.
+
+Each locale includes four 1280×800 images: Binance analysis, configurable analysis window, Tonghuashun analysis, and a three-step quick-start guide. All product panels come from the tested extension rather than invented UI.
 
 ## Submission Checklist
 

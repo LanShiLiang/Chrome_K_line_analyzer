@@ -15,9 +15,15 @@ const STORE_LOCALES = {
     titleAnalysis: 'Analyze Binance Markets Locally',
     subtitleAnalysis:
       'Open a BTC/USDT market page and review volume-price structure, evidence, and charts in the side panel.',
-    titleSettings: 'Reanalyze Immediately After a Setting Change',
+    titleSettings: 'Choose Your Analysis Window',
+    titleQuickstart: 'Your First Analysis, Step by Step',
+    quickstartSteps: [
+      'Open and refresh a Binance or Tonghuashun market page.',
+      'Click the extension icon, then Open Side Panel.',
+      'Choose a period and candle count in settings. Apply, then click Start Analysis.',
+    ],
     subtitleSettings:
-      'Use 30m, 1h, 4h, daily, weekly, or monthly periods with up to 1000 candles. Analysis requires at least 20.',
+      'Choose 30m, 1h, 4h, daily, weekly, or monthly periods and 5–1000 candles. Apply settings, then start analysis when ready.',
     titleTonghuashun: 'Analyze Tonghuashun Stocks Beside the Market Page',
     subtitleTonghuashun:
       'Request public candles for the current stock code with Tonghuashun red-up and green-down chart colors.',
@@ -27,9 +33,15 @@ const STORE_LOCALES = {
     resultLocale: 'zh-cn',
     titleAnalysis: '在 Binance 行情页旁完成本地分析',
     subtitleAnalysis: '打开 BTC/USDT 等现货行情，在侧边面板查看量价结构、依据与成交量图表。',
-    titleSettings: '参数调整后即时重新分析',
+    titleSettings: '按周期与根数选择分析区间',
+    titleQuickstart: '三步开始第一次分析',
+    quickstartSteps: [
+      '打开 Binance 或同花顺行情页，并刷新页面。',
+      '点击扩展图标，打开侧边分析面板。',
+      '在设置中选择周期与根数，应用后点击“开始分析”。',
+    ],
     subtitleSettings:
-      '支持 30 分钟、1 小时、4 小时、日、周、月周期与最多 1000 根 K 线；分析至少需要 20 根。',
+      '支持 30 分钟、1 小时、4 小时、日、周、月周期和 5–1000 根 K 线。应用设置后，可自行开始分析。',
     titleTonghuashun: '浏览同花顺个股时直接分析',
     subtitleTonghuashun: '根据当前证券代码获取公开 K 线；同花顺图表采用红涨绿跌的市场配色。',
     features: ['量价分析', '维科夫分析', '本地处理'],
@@ -190,6 +202,24 @@ try {
           tonghuashunAnalysis,
           copy.titleTonghuashun,
           copy.subtitleTonghuashun,
+          copy.features,
+          'top',
+        ),
+      );
+      await capture(
+        1280,
+        800,
+        resolve(localeDirectory, 'screenshot-4-quickstart-1280x800.png'),
+        storeScreenshot(
+          market,
+          analysis,
+          copy.titleQuickstart,
+          copy.quickstartSteps
+            .map(
+              (step, index) =>
+                `<span style="display:block;margin:0 0 14px"><b style="color:#76a8ff">0${index + 1}</b> &nbsp;${step}</span>`,
+            )
+            .join(''),
           copy.features,
           'top',
         ),

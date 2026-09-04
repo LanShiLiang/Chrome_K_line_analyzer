@@ -20,7 +20,7 @@ No. Market analysis runs locally and is not uploaded to a developer server. Publ
 
 ## Where is chart selection?
 
-Chart selection is temporarily disabled in v0.1.4, including old selection messages and automatic analysis. Choose Start Analysis and configure the period and candle count instead.
+Chart selection is temporarily disabled in v0.1.5, including old selection messages and automatic analysis. Choose Start Analysis and configure the period and candle count instead.
 
 ## Why are TradingView settings locked?
 

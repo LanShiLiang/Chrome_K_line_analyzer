@@ -16,14 +16,14 @@ K Line Analyzer has one purpose: to provide local candlestick, volume-price, and
 - 当前受支持页面的域名、URL、页面标题和由 URL 表示的市场标的，用于识别 Binance、TradingView 或同花顺行情页并将分析绑定到正确的标签页。
 - 公开市场行情数据，包括时间、开盘价、最高价、最低价、收盘价和成交量（OHLCV）。
 - 用户在扩展中选择的分析周期、K 线数量和其他策略设置。
-- v0.1.4 暂停框选功能，不读取选区图像、截取图表图片或运行选区图像识别。
+- v0.1.5 暂停框选功能，不读取选区图像、截取图表图片或运行选区图像识别。
 
 The extension handles only the following data for that purpose:
 
 - The supported page's domain, URL, title, and market symbol represented in the URL, to recognize Binance, TradingView, or Tonghuashun pages and bind analysis to the correct tab.
 - Public market data, including timestamp, open, high, low, close, and volume (OHLCV).
 - Analysis period, candle count, and other strategy settings selected by the user.
-- Chart selection is disabled in v0.1.4: no selected-area images are read, captured, or recognized.
+- Chart selection is disabled in v0.1.5: no selected-area images are read, captured, or recognized.
 
 ## 各站点用途 / Supported-site use
 

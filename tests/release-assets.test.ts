@@ -46,8 +46,8 @@ describe('release manifests', () => {
     expect(production.default_locale).toBe('en');
     expect(development.name).toBe('__MSG_extension_name_dev__');
     expect(production.name).toBe('__MSG_extension_name__');
-    expect(development.permissions).toContain('scripting');
-    expect(production.permissions).toContain('scripting');
+    expect(development.permissions).toEqual(['storage', 'activeTab', 'sidePanel']);
+    expect(production.permissions).toEqual(['storage', 'activeTab', 'sidePanel']);
     for (const host of supportedPageHosts) {
       expect(development.host_permissions).toContain(host);
       expect(production.host_permissions).toContain(host);
@@ -128,9 +128,11 @@ describe('Chrome Web Store assets', () => {
     ['store-assets/en/screenshot-1-analysis-1280x800.png', 1280, 800],
     ['store-assets/en/screenshot-2-settings-1280x800.png', 1280, 800],
     ['store-assets/en/screenshot-3-tonghuashun-1280x800.png', 1280, 800],
+    ['store-assets/en/screenshot-4-quickstart-1280x800.png', 1280, 800],
     ['store-assets/zh-CN/screenshot-1-analysis-1280x800.png', 1280, 800],
     ['store-assets/zh-CN/screenshot-2-settings-1280x800.png', 1280, 800],
     ['store-assets/zh-CN/screenshot-3-tonghuashun-1280x800.png', 1280, 800],
+    ['store-assets/zh-CN/screenshot-4-quickstart-1280x800.png', 1280, 800],
   ])('provides correctly sized store artwork: %s', (file, width, height) => {
     expect(pngDimensions(file)).toEqual({ width, height });
   });

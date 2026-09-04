@@ -336,15 +336,12 @@ try {
     if (tab?.id === undefined) throw new Error(`未找到 ${label} E2E 标签页`);
     return tab.id;
   }, profile.label);
-  const scriptingProbe = await serviceWorker.evaluate(async (tabId) => {
-    const [result] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => true,
-    });
-    return result?.result;
-  }, marketTabId);
-  if (scriptingProbe !== true)
-    throw new Error(`${profile.label} 页面不允许按需恢复 Content Script`);
+  // Test the shipped permission boundary, not a test-only dynamic injection.
+  const runtimePermissions = await serviceWorker.evaluate(
+    () => chrome.runtime.getManifest().permissions,
+  );
+  if (JSON.stringify(runtimePermissions) !== JSON.stringify(['storage', 'activeTab', 'sidePanel']))
+    throw new Error(`${profile.label} 生产扩展包含未审核的权限`);
 
   // 通过真实 popup 用户手势打开与当前行情 Tab 绑定的 Chrome Side Panel。
   const popupPage = await context.newPage();

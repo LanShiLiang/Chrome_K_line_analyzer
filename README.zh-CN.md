@@ -11,9 +11,17 @@ Chrome Manifest V3 纯前端 K 线量价分析插件。按周期和 K 线数量�
 - **Binance 示例**：[BTC/USDT 现货行情](https://www.binance.com/en/trade/BTC_USDT?type=spot)。适合加密资产 K 线与成交量分析。
 - **同花顺示例**：[贵州茅台 600519](https://stockpage.10jqka.com.cn/600519/)。适合 A 股个股 K 线与成交量分析，并使用红涨绿跌配色。
 
-打开支持的行情页面并刷新后，点击浏览器工具栏中的 K Line Analyzer 图标，选择“打开侧边分析面板”，再点击“开始分析”，确认周期和 K 线数量。插件会获取公开行情，在本地生成结论、依据和图表。v0.1.4 暂时屏蔽框选入口。
+打开支持的行情页面并刷新后，点击浏览器工具栏中的 K Line Analyzer 图标，选择“打开侧边分析面板”，再点击“开始分析”，确认周期和 K 线数量。插件会获取公开行情，在本地生成结论、依据和图表。v0.1.5 暂时屏蔽框选入口。
 
 TradingView 作为兼容路径，仅分析页面已经推送且被插件被动捕获的行情；其可用性取决于当前图表数据。首次使用和日常使用建议选择 Binance 或同花顺。
+
+## v0.1.5 更新与快速上手
+
+本版移除未使用的 `scripting` 权限，并新增构建检查以防止该权限再次进入发布包。受支持页面通过 Manifest 声明加载内容脚本；更新扩展后，请刷新已打开的行情页。框选和图表截图功能继续关闭。
+
+![三步开始第一次本地行情分析](./store-assets/zh-CN/screenshot-4-quickstart-1280x800.png)
+
+在设置中选择周期和 K 线数量。“应用设置”只更新下次分析参数，点击“开始分析”后才运行。安装与排错步骤见[用户指南](./docs/USER_GUIDE.zh-CN.md)。
 
 ## 功能
 
@@ -62,7 +70,7 @@ npm run package
 ```
 
 `test:e2e:binance` 会构建并加载当前 `dist`，使用隔离的 Playwright Chromium 打开
-`https://www.binance.com/en/trade/BTC_USDT?type=spot`；`test:e2e:tonghuashun` 使用同样流程打开 `https://stockpage.10jqka.com.cn/600519/`。两项测试都会通过 Popup 用户手势打开真实 Chrome Side Panel，验证开始分析、分析结论与依据、200/64 根 K 线非空画布、小于 20 根的可见校验、响应式布局和分析台重置；Binance 还验证真实选区截图与像素识别。`test:e2e:release` 与 `npm run package` 将两个真实站点都设为发布门禁。
+`https://www.binance.com/en/trade/BTC_USDT?type=spot`；`test:e2e:tonghuashun` 使用同样流程打开 `https://stockpage.10jqka.com.cn/600519/`。两项测试都会通过 Popup 用户手势打开真实 Chrome Side Panel，验证最小运行时权限、开始分析、分析结论与依据、200/64 根 K 线非空画布、非法根数校验、响应式布局和分析台重置；Binance 还验证 30 分钟、1 小时、4 小时周期。框选和截图保持关闭，不作为当前发布能力。`test:e2e:release` 与 `npm run package` 将两个真实站点都设为发布门禁。
 
 ## Chrome Web Store 发布材料
 
@@ -70,7 +78,7 @@ npm run package
 - `docs/WEB_STORE_LISTING.md`：Developer Dashboard 默认英文商店文案。
 - `docs/WEB_STORE_LISTING.zh-CN.md`：与英文版一致的简体中文商店文案。
 - `assets/icons/`：Manifest 使用的 16、32、48、128 px PNG 图标及可编辑 SVG 源文件。
-- `store-assets/en/`、`store-assets/zh-CN/`：英文和简体中文 1280×800 商店截图。
+- `store-assets/en/`、`store-assets/zh-CN/`：中英文各四张 1280×800 详情引导图，依次介绍 Binance 分析、自选分析区间、同花顺分析和三步上手。
 - `store-assets/promo-small-440x280.png`：全球共用的无文字小型宣传图。
 
 运行 `npm run assets:store` 会先生成图标，再执行真实 Binance 与同花顺 E2E，并基于两个站点的最新 Side Panel 产物重新生成商店素材。

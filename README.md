@@ -11,9 +11,17 @@ Use the extension primarily on Binance and Tonghuashun market pages:
 - **Binance example:** [BTC/USDT Spot](https://www.binance.com/en/trade/BTC_USDT?type=spot), for crypto candlestick and volume analysis.
 - **Tonghuashun example:** [Kweichow Moutai 600519](https://stockpage.10jqka.com.cn/600519/), for mainland China A-share analysis with red-up and green-down market colors.
 
-Open and refresh a supported market page, click the K Line Analyzer toolbar icon, choose **Open Side Panel**, and select **Start Analysis**. Confirm the period and candle count to request public market data and generate the result and chart locally. Chart selection is temporarily disabled in v0.1.4.
+Open and refresh a supported market page, click the K Line Analyzer toolbar icon, choose **Open Side Panel**, and select **Start Analysis**. Confirm the period and candle count to request public market data and generate the result and chart locally. Chart selection is temporarily disabled in v0.1.5.
 
 TradingView remains a compatibility path. It only analyzes market data already streamed by the current page and passively captured by the extension. Availability depends on the current chart data; Binance or Tonghuashun is recommended for normal use.
+
+## v0.1.5 Update and Quick Start
+
+This release removes the unused `scripting` permission and adds a build gate to keep it out of shipped packages. Supported pages load manifest-declared content scripts. Refresh already-open market pages after updating. Chart selection and screenshot capture remain disabled.
+
+![Three steps to your first local market analysis](./store-assets/en/screenshot-4-quickstart-1280x800.png)
+
+Use settings to choose the period and candle count. **Apply Settings** updates the next-analysis configuration; click **Start Analysis** to run it. See the [User Guide](./docs/USER_GUIDE.md) for installation and troubleshooting.
 
 ## Features
 
@@ -63,7 +71,7 @@ npm run package
 
 - `test:e2e:locale` loads the real extension against Binance in English and Simplified Chinese Chrome environments.
 - `test:e2e:release` validates the English Binance path and Simplified Chinese Tonghuashun path.
-- Real Side Panel E2E covers the Popup user gesture, active Tab binding, localized UI, 200/64 candle analysis, 30-minute/1-hour/4-hour periods, selected-image date matching, insufficient selections, non-empty Canvas output, responsive recovery, and reset behavior.
+- Real Side Panel E2E covers the Popup user gesture, active Tab binding, localized UI, minimal runtime permissions, 200/64 candle analysis, 30-minute/1-hour/4-hour periods, invalid candle-count validation, non-empty Canvas output, responsive recovery, and reset behavior. Disabled selection and screenshot functionality is not presented as a release capability.
 - `npm run package` runs the complete release gate and creates the versioned ZIP and SHA-256 checksum.
 
 ## Chrome Web Store Materials
@@ -72,8 +80,8 @@ npm run package
 - `docs/WEB_STORE_LISTING.md`: default English store listing, permissions, data disclosures, and submission checklist.
 - `docs/WEB_STORE_LISTING.zh-CN.md`: matching Simplified Chinese store listing.
 - `assets/icons/`: 16, 32, 48, and 128 px Manifest icons plus the editable SVG source.
-- `store-assets/en/`: English localized screenshots.
-- `store-assets/zh-CN/`: Simplified Chinese localized screenshots.
+- `store-assets/en/`: four English detail images covering Binance analysis, the analysis window, Tonghuashun, and quick start.
+- `store-assets/zh-CN/`: four matching Simplified Chinese detail images.
 - `store-assets/promo-small-440x280.png`: global text-free promotional tile.
 
 Run `npm run assets:store` to rebuild icons, execute the required locale/site E2E matrix, and regenerate localized Chrome Web Store screenshots.

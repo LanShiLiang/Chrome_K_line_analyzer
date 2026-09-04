@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verifyReleasePermissions } from './verify-release-permissions.mjs';
 
 const moduleSyntax =
   /(^|[;}])\s*(?:import\s*(?:[({*]|[\w$]+\s+from)|export\s+(?:default|const|let|var|function|class|\{|\*))/m;
@@ -156,6 +157,14 @@ export const verifyExtensionBuild = async (
     );
   }
   const localeFiles = await validateLocales(dist, files, manifest);
+  const shippedScripts = Object.fromEntries(
+    await Promise.all(
+      files
+        .filter((file) => file.endsWith('.js'))
+        .map(async (file) => [file, await readFile(resolve(dist, file), 'utf8')]),
+    ),
+  );
+  verifyReleasePermissions(manifest, shippedScripts);
 
   // Manifest Content Script 以 classic script 运行，必须阻止残留 ESM 语法进入 dist。
   const classicScripts = new Set(
