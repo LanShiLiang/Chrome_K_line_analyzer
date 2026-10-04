@@ -4,6 +4,10 @@
 
 Chrome Manifest V3 纯前端 K 线量价分析插件。按周期和 K 线数量获取当前标的最近的公开 OHLCV 窗口，并通过可解释的维科夫量价规则输出阶段、信号、置信度、关键价位和风险提示。
 
+## 安装
+
+[从 Chrome 应用商店安装 K Line Analyzer](https://chromewebstore.google.com/detail/gjihlpjpeficifemdpenbmamkfgnkkeo?utm_source=item-share-cb)。
+
 ## 推荐使用方式
 
 优先在 Binance 和同花顺行情页面使用本插件：

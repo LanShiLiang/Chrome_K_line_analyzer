@@ -4,6 +4,10 @@
 
 A Chrome Manifest V3 extension for local candlestick, volume-price, and Wyckoff analysis on supported market pages. Choose a period and candle count to analyze the latest public OHLCV window, with explainable stages, signals, confidence, key levels, and risk warnings in the Chrome Side Panel.
 
+## Installation
+
+[Install K Line Analyzer from the Chrome Web Store](https://chromewebstore.google.com/detail/gjihlpjpeficifemdpenbmamkfgnkkeo?utm_source=item-share-cb).
+
 ## Recommended Usage
 
 Use the extension primarily on Binance and Tonghuashun market pages:
